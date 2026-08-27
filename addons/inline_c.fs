@@ -346,7 +346,7 @@ create name-printf 112 c, 114 c, 105 c, 110 c, 116 c, 102 c,
     else c-tok-type @ 2 = if
         find-function
         dup 0 > if
-            fn-xt !
+            fn-xt @ swap fn-xt !
             next-tok
             next-tok
             0
@@ -369,6 +369,7 @@ create name-printf 112 c, 114 c, 105 c, 110 c, 116 c, 102 c,
             drop
             49 c, 192 c,
             232 c, fn-xt @ HERE 4 + - 4comma
+            fn-xt !
         else
             drop
             find-local-var

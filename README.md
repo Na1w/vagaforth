@@ -208,7 +208,86 @@ Run the inline C demo:
 make demo-c
 ```
 
-See `examples/INTERACTIVE_GUIDE.md` for a detailed walkthrough of the example programs.
+---
+
+## Emitting Standalone ELF Executables (`save-elf` & `save-elf-at`)
+
+VagaForth includes built-in words to serialize the live dictionary and memory state into a standalone Linux x86-64 executable binary (ELF64 format) with **zero external dependencies** (no libc or dynamic linker required).
+
+### 1. `save-elf-at` (Custom Application Entry Point)
+
+`save-elf-at` creates a standalone executable whose entry point immediately executes a specified Forth word when launched:
+
+**Stack effect:** `( entry-addr entry-len filename-addr filename-len -- )`
+
+```forth
+\ Define the application logic:
+: main
+    cr
+    ." =======================================" cr
+    ."   Standalone VagaForth Binary Running! " cr
+    ." =======================================" cr
+    ." 7 * 8 = " 7 8 * . cr
+    ;
+
+\ Save as a standalone executable 'hello.bin':
+create entry-nm 109 c, 97 c, 105 c, 110 c,   \ "main"
+entry-nm 4 s" hello.bin" save-elf-at
+```
+
+> **Note on `s"` buffers:** Because Forth's `s"` word uses a single shared temporary buffer (`S-BUF-ADDR`), define the entry word name in a separate buffer (e.g. via `create entry-nm ...` or an allocated buffer) before passing the output filename `s" ..."` to `save-elf-at`.
+
+#### Building & Running from Bash:
+
+```bash
+# Feed the Forth script to vagaforth.bin:
+./vagaforth.bin < my_app.fs
+
+# Run the generated binary directly:
+chmod +x hello.bin
+./hello.bin
+```
+
+---
+
+### 2. Standalone Binaries with Inline C
+
+You can also combine Forth definitions and Inline C functions into a standalone ELF binary:
+
+```forth
+s" addons/inline_c.fs" include
+
+\ Compile C logic:
+s" int fib(int n) { if (n <= 1) return n; return fib(n-1) + fib(n-2); } void c_greet() { printf('Hello from C!\nFibonacci(10) = %d\n', fib(10)); }" c-compile
+
+\ Forth main word calling C and Forth logic:
+: main
+    c_greet
+    ." Forth computation: 100 * 25 = " 100 25 * . cr
+    ;
+
+create entry-nm 109 c, 97 c, 105 c, 110 c,   \ "main"
+entry-nm 4 s" c_app.bin" save-elf-at
+```
+
+---
+
+### 3. `save-elf` (Interactive REPL Snapshot)
+
+`save-elf` saves the entire Forth dictionary and memory state, setting the entry point to the standard interactive Forth REPL (`START`).
+
+**Stack effect:** `( filename-addr filename-len -- )`
+
+```forth
+\ Define new words in the dictionary:
+: double 2 * ;
+: square dup * ;
+
+\ Save the extended system snapshot:
+s" my_custom_forth.bin" save-elf
+```
+
+When `./my_custom_forth.bin` is executed, it boots directly into the interactive Forth REPL with all custom words pre-loaded.
 
 ---
 
