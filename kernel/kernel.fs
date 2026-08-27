@@ -576,6 +576,69 @@ t-code sys-open ( path-addr path-len flags mode -- fd )
     decimal
 t-end-code
 
+\ sys-ioctl ( fd req arg -- status ) : ioctl(16) syscall
+t-code sys-ioctl ( fd req arg -- status )
+    t-vhere constant XT_SYS_IOCTL
+    asm-push-rdi
+    hex
+    mov-rax-tos                \ RAX = arg (arg3)
+    mov-rdx-rax                \ RDX = arg
+    mov-rax-nos                \ RAX = req (arg2)
+    mov-rsi-rax                \ RSI = req
+    48 c, 8b c, 47 c, e8 c,    \ MOV RAX, [RDI-24]  (fd)
+    mov-rdi-rax                \ RDI = fd (arg1)
+    48 c, c7 c, c0 c, 10 c, 00 c, 00 c, 00 c,   \ RAX = 16 (SYS_IOCTL)
+    syscall
+    asm-pop-rdi
+    sub-rdi-8                  \ pop arg
+    sub-rdi-8                  \ pop req
+    mov-tos-rax                \ store status (overwrites fd slot)
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ sys-nanosleep ( req-addr rem-addr -- status ) : nanosleep(35) syscall
+t-code sys-nanosleep ( req-addr rem-addr -- status )
+    t-vhere constant XT_SYS_NANOSLEEP
+    asm-push-rdi
+    hex
+    mov-rax-tos                \ RAX = rem (arg2)
+    mov-rsi-rax                \ RSI = rem
+    mov-rax-nos                \ RAX = req (arg1)
+    mov-rdi-rax                \ RDI = req
+    48 c, c7 c, c0 c, 23 c, 00 c, 00 c, 00 c,   \ RAX = 35 (SYS_NANOSLEEP)
+    syscall
+    asm-pop-rdi
+    sub-rdi-8                  \ pop rem
+    mov-tos-rax                \ store status (overwrites req slot)
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ sys-fcntl ( fd cmd arg -- status ) : fcntl(72) syscall
+t-code sys-fcntl ( fd cmd arg -- status )
+    t-vhere constant XT_SYS_FCNTL
+    asm-push-rdi
+    hex
+    mov-rax-tos                \ RAX = arg (arg3)
+    mov-rdx-rax                \ RDX = arg
+    mov-rax-nos                \ RAX = cmd (arg2)
+    mov-rsi-rax                \ RSI = cmd
+    48 c, 8b c, 47 c, e8 c,    \ MOV RAX, [RDI-24]  (fd)
+    mov-rdi-rax                \ RDI = fd (arg1)
+    48 c, c7 c, c0 c, 48 c, 00 c, 00 c, 00 c,   \ RAX = 72 (SYS_FCNTL = 0x48)
+    syscall
+    asm-pop-rdi
+    sub-rdi-8                  \ pop arg
+    sub-rdi-8                  \ pop cmd
+    mov-tos-rax                \ store status (overwrites fd slot)
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
 \ ============================================================
 \ t-b3d4: Native helper words (stack ops, logic, shifts, memory)
 \ ============================================================

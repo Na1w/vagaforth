@@ -52,11 +52,23 @@ The architecture is split into two distinct layers:
 │   ├── kernel.fs         # Main target kernel (interpreter loop, primitives)
 │   ├── kernel_self.fs    # Forth library compiled by self-hosting stage
 │   └── selfhost.fs       # Self-hosting driver (compile-file, save-elf)
+├── addons/               # VagaForth Addon modules
+│   └── inline_c.fs       # Inline C compiler (x86-64 native JIT + Forth bridge)
 ├── examples/             # Example Forth programs
 │   ├── test.fs
 │   ├── advanced.fs
 │   ├── guess_game.fs     # Interactive number guessing game (emits standalone binary)
 │   ├── dungeon.fs        # Classic text adventure dungeon game (emits standalone binary)
+│   ├── platformer.fs     # 2D ASCII platformer runner game (emits standalone binary)
+│   ├── c_inline/         # Inline C compilation demo
+│   │   └── demo_inline_c.fs
+│   ├── bf/               # Brainfuck-to-x86-64 native JIT compiler & examples
+│   │   ├── bf_compiler.fs
+│   │   ├── compile_hello_bf.fs # Ahead-of-Time compiler emitting hello_bf.bin
+│   │   ├── hello.bf
+│   │   ├── alphabet.bf
+│   │   ├── rot13.bf
+│   │   └── README.md
 │   └── INTERACTIVE_GUIDE.md
 ├── tests/                # Test suites
 └── docs/
@@ -162,6 +174,40 @@ The trailing `-` switches the interpreter into interactive REPL mode after the f
 6 fib .           \ → 8
 ```
 
+---
+
+## Inline C Compiler Addon (`addons/inline_c.fs`)
+
+VagaForth includes a built-in **Inline C Compiler** addon that parses C function syntax directly from a string and JIT-compiles it into native x86-64 machine code, automatically registering bridge words in the Forth dictionary. It includes a built-in C standard I/O runtime (`printf`, `puts`, `gets`, `putchar`, `getchar`).
+
+### Quick Example
+
+```forth
+s" addons/inline_c.fs" include
+
+\ 1. Arithmetic & recursion in C:
+s" int add(int a, int b) { return a + b; }" c-compile
+20 30 add .   \ Outputs 50
+
+s" int fib(int n) { if (n <= 1) return n; return fib(n - 1) + fib(n - 2); }" c-compile
+10 fib .      \ Outputs 55
+
+\ 2. Formatted output with printf() and string literals:
+s" void greet(char *name, int score) { printf('Hello %s! Score: %d (0x%x)\n', name, score, score); }" c-compile
+: c-str 2dup + 0 swap c! drop ;
+s" Fredrik" c-str 100 greet
+
+\ 3. Interactive input with gets():
+create user-buf 256 allot drop
+s" void ask(char *buf) { printf('Your name: '); gets(buf); printf('Welcome, %s!\n', buf); }" c-compile
+user-buf ask
+```
+
+Run the inline C demo:
+```bash
+make demo-c
+```
+
 See `examples/INTERACTIVE_GUIDE.md` for a detailed walkthrough of the example programs.
 
 ---
@@ -192,5 +238,6 @@ This project is released under the MIT License. See the `LICENSE` file for detai
 ---
 
 ## Acknowledgments
-
-- **`kvaser-cli`** — the AI tooling used to generate the Forth language implementation, including the cross-compilation and self-compilation logic.
+- **Fredrik Andersson** — Author of the original Forth C interpreter.
+- **`kvaser-cli`** — AI tooling used to generate the Forth language implementation, including the cross-compilation and self-compilation logic.
+- **Google Gemini** — Forth examples (dungeon, brainfuck compiler, platformer) and the inline C compiler addon.

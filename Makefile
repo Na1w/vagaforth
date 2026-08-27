@@ -9,11 +9,14 @@ TARGET_BIN = vagaforth.bin
 SELFHOST_BIN = vagaforth_new.bin
 GAME_BIN = guess_game.bin
 DUNGEON_BIN = dungeon.bin
+BF_BIN = bf_compiler.bin
+BF_HELLO_BIN = hello_bf.bin
+PLATFORMER_BIN = platformer.bin
 
 CORE_SRCS = $(wildcard core/*.fs)
 KERNEL_SRCS = kernel/kernel.fs $(CORE_SRCS)
 
-all: $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN)
+all: $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN) $(BF_BIN) $(BF_HELLO_BIN) $(PLATFORMER_BIN)
 
 $(HOST_BIN): $(OBJ)
 	$(CC) $(OBJ) -o $(HOST_BIN) $(LDFLAGS)
@@ -33,13 +36,26 @@ $(GAME_BIN): $(TARGET_BIN) examples/guess_game.fs
 $(DUNGEON_BIN): $(TARGET_BIN) examples/dungeon.fs
 	./$(TARGET_BIN) < examples/dungeon.fs
 
+$(BF_BIN): $(TARGET_BIN) examples/bf/bf_compiler.fs
+	./$(TARGET_BIN) < examples/bf/bf_compiler.fs
+
+$(BF_HELLO_BIN): $(TARGET_BIN) examples/bf/compile_hello_bf.fs
+	./$(TARGET_BIN) < examples/bf/compile_hello_bf.fs
+
+$(PLATFORMER_BIN): $(TARGET_BIN) examples/platformer.fs
+	./$(TARGET_BIN) < examples/platformer.fs
+
 test: all
 	./tests/run_all.sh
 	./tests/diff_test.sh
 	./tests/diff_dot_dotquote.sh
 	python3 tests/pty_interactive_test.py
+	./$(TARGET_BIN) < examples/c_inline/demo_inline_c.fs
+
+demo-c: $(TARGET_BIN)
+	./$(TARGET_BIN) < examples/c_inline/demo_inline_c.fs
 
 clean:
-	rm -f $(OBJ) $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN) hello.bin tests/stage_*.txt src/*.o
+	rm -f $(OBJ) $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN) $(BF_BIN) $(BF_HELLO_BIN) $(PLATFORMER_BIN) hello.bin tests/stage_*.txt src/*.o
 
-.PHONY: all test clean
+.PHONY: all test clean demo-c
