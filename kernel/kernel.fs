@@ -126,7 +126,7 @@ hex
 430E10 constant INCLUDE-LEN
 430E18 constant INCLUDE-FN-BUF
 431000 constant INCLUDE-SRC-BUF
-450000 constant INC-BUF-BASE
+E0000000 constant INC-BUF-BASE
 
 \ t-b1c3: save-elf-at scratch buffers (target RAM, above INCLUDE-SRC-BUF 0x431000).
 \ The runtime s" primitive reuses one shared S-BUF-ADDR, so consecutive s"
@@ -3611,9 +3611,9 @@ variable ds-done
 hex
 t-code .s ( -- )
     t-vhere constant XT_DOT_S
-    \ r12 = saved DSP; r13 = stack base 0x800000 (loop pointer)
+    \ r12 = saved DSP; r13 = stack base 0xD0000000 (loop pointer)
     49 c, 89 c, fc c,             \ MOV R12, RDI
-    49 c, bd c, 800000 8,         \ MOV R13, 0x800000
+    49 c, bd c, D0000000 8,         \ MOV R13, 0xD0000000
     \ push depth = (R12 - R13) >> 3
     4c c, 89 c, e0 c,             \ MOV RAX, R12
     4c c, 29 c, e8 c,             \ SUB RAX, R13
@@ -3799,11 +3799,11 @@ t-code save-elf-at ( name-addr name-len filename-addr filename-len -- )
     \ mov rsp, 0x420000  (RSP init) : 48 bc <imm64>
     48 emit-push-imm e8 c, XT_CCOMMA t-vhere 4 + - 4,
     bc emit-push-imm e8 c, XT_CCOMMA t-vhere 4 + - 4,
-    420000 emit-push-imm e8 c, XT_COMMA t-vhere 4 + - 4,
-    \ mov rdi, 0x410000  (DSP init) : 48 bf <imm64>
+    F0000000 emit-push-imm e8 c, XT_COMMA t-vhere 4 + - 4,
+    \ mov rdi, 0xD0000000 (DSP init) : 48 bf <imm64>
     48 emit-push-imm e8 c, XT_CCOMMA t-vhere 4 + - 4,
     bf emit-push-imm e8 c, XT_CCOMMA t-vhere 4 + - 4,
-    410000 emit-push-imm e8 c, XT_COMMA t-vhere 4 + - 4,
+    D0000000 emit-push-imm e8 c, XT_COMMA t-vhere 4 + - 4,
     \ mov rbx, <xt>  (absolute word address) : 48 bb <imm64>
     48 emit-push-imm e8 c, XT_CCOMMA t-vhere 4 + - 4,
     bb emit-push-imm e8 c, XT_CCOMMA t-vhere 4 + - 4,
@@ -3840,8 +3840,8 @@ t-code save-elf-at ( name-addr name-len filename-addr filename-len -- )
     XT_HERE asm-call-sync       \ here
     ELF-ORIGIN emit-push-imm    \ here ELF-ORIGIN
     XT_MINUS asm-call-sync      \ file-size
-    \ push mem-size 0x1000000
-    01000000 emit-push-imm      \ ( tramp file mem )
+    \ push mem-size 0x100000000 (4GB)
+    100000000 emit-push-imm     \ ( tramp file mem )
     XT_ELF_HEADER asm-call-sync \ elf-header ( entry file mem -- )
     \ --- 7. save-elf ( SAVE-FN-BUF SAVE-FN-LEN ) ---
     SAVE-FN-BUF emit-mov-rax-imm
@@ -3884,8 +3884,8 @@ t-code START
     IS-TTY-FLAG emit-store-rax-var
     PROMPT-FLAG emit-store-rax-var
     \ Init stacks
-    48 c, c7 c, c7 c, 00 c, 00 c, 80 c, 00 c, \ MOV RDI, 800000 (DSP)
-    48 c, bc c, 900000 8,                     \ MOV RSP, 900000
+    48 c, bf c, D0000000 8,                   \ MOV RDI, 0xD0000000 (DSP)
+    48 c, bc c, F0000000 8,                   \ MOV RSP, 0xF0000000 (RSP)
     decimal
     \ Reset interpreter state at boot
     0 emit-mov-rax-imm
@@ -3935,7 +3935,7 @@ real-entry-point @ constant ENTRY-POINT
 hex
 here target-base @ - constant BIN-SIZE
 target-base @ target-dp !
-ENTRY-POINT BIN-SIZE 1000000 elf-header
+ENTRY-POINT BIN-SIZE 100000000 elf-header
 target-base @ BIN-SIZE + target-dp !
 
 s" vagaforth_new.bin" host-save-elf
