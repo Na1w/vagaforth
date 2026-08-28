@@ -5,6 +5,7 @@
 #include <sys/mman.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <setjmp.h>
 #include <dlfcn.h>
 #include "vagaforth.h"
@@ -464,6 +465,28 @@ static void prim_target_find(void) {
     push(0); // false
 }
 
+static void prim_find(void) {
+    cell_t len = pop();
+    char *name = (char*)pop();
+    cell_t current = latest;
+    while (current != 0) {
+        uint8_t *ptr = (uint8_t*)current;
+        ptr += CELL_SIZE;
+        uint8_t len_byte = *ptr++;
+        uint8_t l = len_byte & MASK_LENGTH;
+        if (l == len && strncasecmp((char*)ptr, name, len) == 0) {
+            ptr += len;
+            while ((uintptr_t)ptr % CELL_SIZE != 0) ptr++;
+            push((cell_t)ptr); // xt
+            push((cell_t)len_byte); // flags
+            push(-1); // true
+            return;
+        }
+        current = *(cell_t*)current;
+    }
+    push(0); // false
+}
+
 static void prim_immediate(void) {
     if (latest == 0) return;
     uint8_t *ptr = (uint8_t*)latest;
@@ -605,6 +628,44 @@ static void prim_does_helper(void) {
     prim_exit();
 }
 
+static void prim_sys_write(void) {
+    cell_t len = pop();
+    cell_t addr = pop();
+    cell_t fd = pop();
+    ssize_t n = write((int)fd, (const void*)addr, (size_t)len);
+    push((cell_t)n);
+}
+
+static void prim_sys_read(void) {
+    cell_t len = pop();
+    cell_t addr = pop();
+    cell_t fd = pop();
+    ssize_t n = read((int)fd, (void*)addr, (size_t)len);
+    push((cell_t)n);
+}
+
+static void prim_sys_close(void) {
+    cell_t fd = pop();
+    int res = close((int)fd);
+    push((cell_t)res);
+}
+
+static void prim_sys_creat(void) {
+    cell_t mode = pop();
+    cell_t path = pop();
+    int fd = creat((const char*)path, (mode_t)mode);
+    push((cell_t)fd);
+}
+
+static void prim_sys_open(void) {
+    cell_t mode = pop();
+    cell_t flags = pop();
+    pop(); // path-len discarded
+    cell_t path = pop();
+    int fd = open((const char*)path, (int)flags, (mode_t)mode);
+    push((cell_t)fd);
+}
+
 static void prim_include(void) {
     char *filename = get_word();
     if (!filename) {
@@ -733,8 +794,16 @@ void init_primitives(void) {
     create_primitive("'", prim_tick);
     create_primitive("parse-name", prim_parse_name);
     create_primitive("target-find", prim_target_find);
+    create_primitive("find", prim_find);
+    create_primitive("FIND", prim_find);
     create_primitive("immediate", prim_immediate);
     create_primitive("include", prim_include);
+    
+    create_primitive("sys-write", prim_sys_write);
+    create_primitive("sys-read", prim_sys_read);
+    create_primitive("sys-close", prim_sys_close);
+    create_primitive("sys-creat", prim_sys_creat);
+    create_primitive("sys-open", prim_sys_open);
     
     create_primitive("dlopen", prim_dlopen);
     create_primitive("dlsym", prim_dlsym);

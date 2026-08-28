@@ -26,8 +26,9 @@ $(HOST_BIN): $(OBJ)
 
 $(TARGET_BIN): $(HOST_BIN) $(KERNEL_SRCS)
 	./$(HOST_BIN) kernel/kernel.fs
+	cp $(SELFHOST_BIN) $(TARGET_BIN)
 
-$(SELFHOST_BIN): $(TARGET_BIN) kernel/selfhost.fs kernel/kernel_self.fs
+$(SELFHOST_BIN): $(TARGET_BIN) kernel/selfhost.fs
 	./$(TARGET_BIN) < kernel/selfhost.fs
 
 $(GAME_BIN): $(TARGET_BIN) examples/guess_game.fs

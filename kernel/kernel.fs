@@ -119,13 +119,14 @@ hex
 430D00 constant ELF-FD
 430D08 constant ELF-ZERO-BUF
 \ t-d5a6: include scratch buffers (target RAM, above ELF-ZERO-BUF 0x430D08+0x100).
-\ INCLUDE-FD/LEN hold the open fd and accumulated source length.
-\ INCLUDE-FN-BUF holds the null-terminated filename for sys-open.
-\ INCLUDE-SRC-BUF is the source read buffer (evaluated after full read).
+\ INCLUDE-DEPTH tracks include nesting level.
+\ INC-BUF-BASE (0x450000) provides 256KB per nesting level.
+430E00 constant INCLUDE-DEPTH
 430E08 constant INCLUDE-FD
 430E10 constant INCLUDE-LEN
 430E18 constant INCLUDE-FN-BUF
 431000 constant INCLUDE-SRC-BUF
+450000 constant INC-BUF-BASE
 
 \ t-b1c3: save-elf-at scratch buffers (target RAM, above INCLUDE-SRC-BUF 0x431000).
 \ The runtime s" primitive reuses one shared S-BUF-ADDR, so consecutive s"
@@ -183,7 +184,7 @@ t-vhere constant T-LATEST-VAR  0 8,
 t-vhere constant T-STATE-VAR   0 8,
 \ t-f8c3: numeric base cell (10=decimal, 16=hex). Default decimal. Read by
 \ the `.` word to match C prim_dot (`%ld` decimal vs `%lx` hex when base==16).
-t-vhere constant T-BASE-VAR    0A 8,
+t-vhere constant T-BASE-VAR    10 8,
 t-vhere constant T-HERE-VAR    T-CODE-START 8,
 t-vhere constant T-CDEPTH      0 8,
 t-vhere constant SOURCE-PTR    0 8,
@@ -314,6 +315,22 @@ t-code drop ( n -- )
     hex c3 c,
 t-end-code
 
+t-code 2drop ( a b -- )
+    t-vhere constant XT_2DROP
+    48 c, 83 c, ef c, 10 c, \ SUB RDI, 16
+    mov-rax-rdi
+    hex c3 c,
+t-end-code
+
+t-code negate ( n -- -n )
+    t-vhere constant XT_NEGATE
+    mov-rax-tos
+    48 c, f7 c, d8 c, \ NEG RAX
+    mov-tos-rax
+    mov-rax-rdi
+    hex c3 c,
+t-end-code
+
 t-code swap ( a b -- b a )
     t-vhere constant XT_SWAP
     mov-rax-tos      \ RAX = b
@@ -358,6 +375,57 @@ t-code ! ( n addr -- )
     c3 c,
 t-end-code
 
+\ +! ( n addr -- )  : add n to qword at addr
+t-code +! ( n addr -- )
+    t-vhere constant XT_PLUS_STORE
+    mov-rax-tos      \ RAX = addr
+    mov-rbx-nos      \ RBX = n
+    48 c, 01 c, 18 c, \ ADD [RAX], RBX
+    sub-rdi-8
+    sub-rdi-8
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ /mod ( a b -- rem quot )
+t-code /mod ( a b -- rem quot )
+    t-vhere constant XT_SLASH_MOD
+    mov-rbx-tos      \ RBX = b (divisor)
+    mov-rax-nos      \ RAX = a (dividend)
+    48 c, 99 c,      \ CQO
+    48 c, f7 c, fb c, \ IDIV RBX (RAX=quot, RDX=rem)
+    mov-tos-rax      \ TOS = quot
+    48 c, 89 c, 57 c, f0 c, \ MOV [RDI-16], RDX (NOS = rem)
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ / ( a b -- quot )
+t-code / ( a b -- quot )
+    t-vhere constant XT_SLASH
+    mov-rbx-tos      \ RBX = b (divisor)
+    mov-rax-nos      \ RAX = a (dividend)
+    48 c, 99 c,      \ CQO
+    48 c, f7 c, fb c, \ IDIV RBX
+    sub-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ mod ( a b -- rem )
+t-code mod ( a b -- rem )
+    t-vhere constant XT_MOD
+    mov-rbx-tos      \ RBX = b (divisor)
+    mov-rax-nos      \ RAX = a (dividend)
+    48 c, 99 c,      \ CQO
+    48 c, f7 c, fb c, \ IDIV RBX
+    sub-rdi-8
+    48 c, 89 c, 57 c, f8 c, \ MOV [RDI-8], RDX
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
 \ c@ ( addr -- ch )  : fetch byte
 t-code c@ ( addr -- ch )
     t-vhere constant XT_CFETCH
@@ -386,6 +454,63 @@ t-code over ( a b -- a b a )
     mov-rbx-nos      \ RBX = a (NOS)
     add-rdi-8        \ PUSH
     mov-tos-rbx
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ 2over ( a b c d -- a b c d a b )
+t-code 2over ( a b c d -- a b c d a b )
+    t-vhere constant XT_2OVER
+    48 c, 8b c, 47 c, e0 c,     \ MOV RAX, [RDI-32] (a)
+    48 c, 8b c, 5f c, e8 c,     \ MOV RBX, [RDI-24] (b)
+    48 c, 83 c, c7 c, 10 c,     \ ADD RDI, 16
+    48 c, 89 c, 47 c, f0 c,     \ MOV [RDI-16], RAX
+    48 c, 89 c, 5f c, f8 c,     \ MOV [RDI-8], RBX
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ 3dup ( a b c -- a b c a b c )
+t-code 3dup ( a b c -- a b c a b c )
+    t-vhere constant XT_3DUP
+    48 c, 8b c, 47 c, e8 c,     \ MOV RAX, [RDI-24] (a)
+    48 c, 8b c, 5f c, f0 c,     \ MOV RBX, [RDI-16] (b)
+    48 c, 8b c, 4f c, f8 c,     \ MOV RCX, [RDI-8]  (c)
+    48 c, 83 c, c7 c, 18 c,     \ ADD RDI, 24
+    48 c, 89 c, 47 c, e8 c,     \ MOV [RDI-24], RAX
+    48 c, 89 c, 5f c, f0 c,     \ MOV [RDI-16], RBX
+    48 c, 89 c, 4f c, f8 c,     \ MOV [RDI-8], RCX
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ 3drop ( a b c -- )
+t-code 3drop ( a b c -- )
+    t-vhere constant XT_3DROP
+    48 c, 83 c, ef c, 18 c,     \ SUB RDI, 24
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ pick ( n -- x_n )
+t-code pick ( n -- x_n )
+    t-vhere constant XT_PICK
+    mov-rax-tos                 \ RAX = n
+    48 c, ff c, c0 c,           \ INC RAX (n+1)
+    48 c, c1 c, e0 c, 03 c,     \ SHL RAX, 3 ((n+1)*8)
+    48 c, f7 c, d8 c,           \ NEG RAX (-offset)
+    48 c, 8b c, 44 c, 07 c, f8 c, \ MOV RAX, [RDI + RAX - 8]
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ cells ( n -- n*8 )
+t-code cells ( n -- n*8 )
+    t-vhere constant XT_CELLS
+    mov-rax-tos
+    48 c, c1 c, e0 c, 03 c,     \ SHL RAX, 3
+    mov-tos-rax
     mov-rax-rdi
     c3 c,
 t-end-code
@@ -461,6 +586,50 @@ t-code 0= ( n -- flag )
     48 c, 0f c, 94 c, c0 c, \ SETE AL
     48 c, 0f c, b6 c, c0 c, \ MOVZX RAX, AL
     mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ 0<> ( n -- flag )
+t-code 0<> ( n -- flag )
+    t-vhere constant XT_0NOTEQ
+    mov-rax-tos
+    cmp-rax-0
+    48 c, 0f c, 95 c, c0 c, \ SETNE AL
+    48 c, 0f c, b6 c, c0 c, \ MOVZX RAX, AL
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ <> ( a b -- flag )
+t-code <> ( a b -- flag )
+    t-vhere constant XT_NOTEQ
+    mov-rax-nos
+    mov-rbx-tos
+    cmp-rax-rbx
+    48 c, 0f c, 95 c, c0 c, \ SETNE AL
+    48 c, 0f c, b6 c, c0 c, \ MOVZX RAX, AL
+    sub-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ true ( -- -1 )
+t-code true ( -- -1 )
+    t-vhere constant XT_TRUE
+    add-rdi-8
+    48 c, c7 c, 47 c, f8 c, ff c, ff c, ff c, ff c, \ MOV [RDI-8], -1
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ false ( -- 0 )
+t-code false ( -- 0 )
+    t-vhere constant XT_FALSE
+    add-rdi-8
+    48 c, c7 c, 47 c, f8 c, 00 c, 00 c, 00 c, 00 c, \ MOV [RDI-8], 0
     mov-rax-rdi
     c3 c,
 t-end-code
@@ -694,6 +863,46 @@ t-code and ( a b -- a&b )
     and-rax-rbx                \ RAX = a & b
     sub-rdi-8                  \ pop b
     mov-tos-rax                \ store result
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ or ( a b -- a|b )
+t-code or ( a b -- a|b )
+    t-vhere constant XT_OR
+    hex
+    mov-rax-tos                \ RAX = b
+    mov-rbx-nos                \ RBX = a
+    48 c, 09 c, d8 c,          \ OR RAX, RBX
+    sub-rdi-8                  \ pop b
+    mov-tos-rax                \ store result
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ xor ( a b -- a^b )
+t-code xor ( a b -- a^b )
+    t-vhere constant XT_XOR
+    hex
+    mov-rax-tos                \ RAX = b
+    mov-rbx-nos                \ RBX = a
+    48 c, 31 c, d8 c,          \ XOR RAX, RBX
+    sub-rdi-8                  \ pop b
+    mov-tos-rax                \ store result
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ invert ( n -- ~n )
+t-code invert ( n -- ~n )
+    t-vhere constant XT_INVERT
+    hex
+    mov-rax-tos
+    48 c, f7 c, d0 c,          \ NOT RAX
+    mov-tos-rax
     mov-rax-rdi
     c3 c,
     decimal
@@ -1521,6 +1730,54 @@ t-code s"
     decimal
 t-end-code
 
+\ --- \ ( -- ) line comment: skip until newline (10) or EOF (0) ---
+variable bs-je-eof
+variable bs-je-nl
+t-code \
+    t-vhere constant XT_BACKSLASH
+    hex
+    here constant BS_LOOP
+    e8 c, XT_GETCHAR t-vhere 4 + - 4,   \ CALL getchar ( -- ch )
+    mov-rax-tos
+    sub-rdi-8                           \ pop char
+    48 c, 83 c, f8 c, 00 c,             \ CMP RAX, 0 (EOF)
+    asm-je bs-je-eof !
+    48 c, 83 c, f8 c, 0a c,             \ CMP RAX, 10 (\n)
+    asm-je bs-je-nl !
+    eb c, BS_LOOP here 1 + - c,         \ JMP BS_LOOP
+    here constant BS_DONE
+    bs-je-eof @ asm-resolve
+    bs-je-nl @ asm-resolve
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+t-immediate
+
+\ --- ( ( -- ) block comment: skip until ')' (41 / 0x29) or EOF (0) ---
+variable paren-je-eof
+variable paren-je-close
+t-code (
+    t-vhere constant XT_PAREN
+    hex
+    here constant PAREN_LOOP
+    e8 c, XT_GETCHAR t-vhere 4 + - 4,   \ CALL getchar ( -- ch )
+    mov-rax-tos
+    sub-rdi-8                           \ pop char
+    48 c, 83 c, f8 c, 00 c,             \ CMP RAX, 0 (EOF)
+    asm-je paren-je-eof !
+    48 c, 83 c, f8 c, 29 c,             \ CMP RAX, 41 (')')
+    asm-je paren-je-close !
+    eb c, PAREN_LOOP here 1 + - c,      \ JMP PAREN_LOOP
+    here constant PAREN_DONE
+    paren-je-eof @ asm-resolve
+    paren-je-close @ asm-resolve
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+t-immediate
+
 \ --- PARSE-NAME ( -- addr len ) ---
 variable p-je-eof-skip
 variable p-je-eof-collect
@@ -1701,10 +1958,22 @@ t-end-code
 \ Registers: RSI=addr, RCX=len, R9=accum, RBX=counter, RDX=sign, RAX=digit
 variable n-jne-parse
 variable n-jge-done
-variable n-ja-notnum
-variable n-jl-notnum
+variable n-notnum1
+variable n-notnum2
+variable n-notnum3
+variable n-notnum4
+variable n-notnum5
+variable n-notnum6
 variable n-jne-notnum
 variable n-jne-pos
+variable n-chk-lower
+variable n-chk-upper
+variable n-got-digit1
+variable n-got-digit2
+variable n-skip-0x1
+variable n-skip-0x2
+variable n-skip-0x3
+variable n-match-0x
 
 t-code NUMBER?
     t-vhere constant XT_NUMBER
@@ -1716,40 +1985,91 @@ t-code NUMBER?
     48 c, 89 c, c6 c, \ MOV RSI, RAX
     sub-rdi-8        \ pop addr
     
-    \ init: R9=0 (accum), RBX=0 (counter), RDX=0 (sign)
+    \ init: R9=0 (accum), RBX=0 (counter), RDX=0 (sign), R11=base
     4d c, 31 c, c9 c, \ XOR R9, R9
     48 c, 31 c, db c, \ XOR RBX, RBX
     48 c, 31 c, d2 c, \ XOR RDX, RDX
+    T-BASE-VAR emit-mov-rax-var
+    49 c, 89 c, c3 c, \ MOV R11, RAX (base)
     
-    \ check for leading '-' (use AL, NOT CL - CL holds len in RCX!)
+    \ check for leading '-'
+    48 c, 83 c, f9 c, 00 c, \ CMP RCX, 0
+    asm-jle n-notnum1 !
     8a c, 06 c, \ MOV AL, [RSI]
     3c c, 2d c, \ CMP AL, '-'
     asm-jne n-jne-parse !
     48 c, c7 c, c2 c, 01 c, 00 c, 00 c, 00 c, \ MOV RDX, 1
     48 c, ff c, c3 c, \ INC RBX
     
-    \ parse_digits:
+    \ check for 0x / 0X prefix (if remaining len >= 2)
     here constant NUM_PARSE
     n-jne-parse @ asm-resolve
+    48 c, 8d c, 43 c, 02 c, \ LEA RAX, [RBX+2]
+    48 c, 39 c, c8 c,       \ CMP RAX, RCX
+    asm-ja n-skip-0x1 !
+    8a c, 04 c, 1e c,       \ MOV AL, [RSI+RBX]
+    3c c, 30 c,             \ CMP AL, '0'
+    asm-jne n-skip-0x2 !
+    8a c, 44 c, 1e c, 01 c, \ MOV AL, [RSI+RBX+1]
+    3c c, 78 c,             \ CMP AL, 'x'
+    asm-je n-match-0x !
+    3c c, 58 c,             \ CMP AL, 'X'
+    asm-jne n-skip-0x3 !
+    here constant MATCH_0X
+    n-match-0x @ asm-resolve
+    49 c, c7 c, c3 c, 10 c, 00 c, 00 c, 00 c, \ MOV R11, 16 (hex)
+    48 c, 83 c, c3 c, 02 c, \ ADD RBX, 2 (skip '0x')
+    
+    \ parse_digits loop:
+    here constant NUM_DIGIT_LOOP
+    n-skip-0x1 @ asm-resolve
+    n-skip-0x2 @ asm-resolve
+    n-skip-0x3 @ asm-resolve
     48 c, 39 c, cb c, \ CMP RBX, RCX
     asm-jge n-jge-done !
     48 c, 0f c, b6 c, 04 c, 1e c, \ MOVZX RAX, BYTE [RSI+RBX]
+    \ '0'..'9'
+    48 c, 83 c, f8 c, 30 c, \ CMP RAX, '0'
+    asm-jb n-notnum2 !
+    48 c, 83 c, f8 c, 39 c, \ CMP RAX, '9'
+    asm-ja n-chk-lower !
     48 c, 83 c, e8 c, 30 c, \ SUB RAX, '0'
-    48 c, 83 c, f8 c, 09 c, \ CMP RAX, 9
-    asm-ja n-ja-notnum !
-    48 c, 83 c, f8 c, 00 c, \ CMP RAX, 0
-    asm-jl n-jl-notnum !
-    \ n = n*10 + digit
-    4d c, 69 c, c9 c, 0a c, 00 c, 00 c, 00 c, \ IMUL R9, R9, 10
-    4c c, 01 c, c8 c, \ ADD RAX, R9
-    49 c, 89 c, c1 c, \ MOV R9, RAX
-    48 c, ff c, c3 c, \ INC RBX
-    eb c, NUM_PARSE here 1 + - c, \ JMP parse_digits
+    asm-jmp n-got-digit1 !
+    
+    \ 'a'..'f'
+    here constant NUM_CHK_LOWER
+    n-chk-lower @ asm-resolve
+    48 c, 83 c, f8 c, 61 c, \ CMP RAX, 'a'
+    asm-jb n-chk-upper !
+    48 c, 83 c, f8 c, 66 c, \ CMP RAX, 'f'
+    asm-ja n-notnum3 !
+    48 c, 83 c, e8 c, 57 c, \ SUB RAX, 0x57 ('a'-10)
+    asm-jmp n-got-digit2 !
+    
+    \ 'A'..'F'
+    here constant NUM_CHK_UPPER
+    n-chk-upper @ asm-resolve
+    48 c, 83 c, f8 c, 41 c, \ CMP RAX, 'A'
+    asm-jb n-notnum4 !
+    48 c, 83 c, f8 c, 46 c, \ CMP RAX, 'F'
+    asm-ja n-notnum5 !
+    48 c, 83 c, e8 c, 37 c, \ SUB RAX, 0x37 ('A'-10)
+    
+    \ got_digit: RAX = digit
+    here constant NUM_GOT_DIGIT
+    n-got-digit1 @ asm-resolve
+    n-got-digit2 @ asm-resolve
+    49 c, 39 c, c3 c,       \ CMP R11, RAX (base vs digit)
+    asm-jle n-notnum6 !     \ digit >= base -> not number
+    4d c, 0f c, af c, cb c, \ IMUL R9, R11 (accum * base)
+    4c c, 01 c, c8 c,       \ ADD RAX, R9
+    49 c, 89 c, c1 c,       \ MOV R9, RAX
+    48 c, ff c, c3 c,       \ INC RBX
+    eb c, NUM_DIGIT_LOOP here 1 + - c, \ JMP NUM_DIGIT_LOOP
     
     \ done_parse:
     here constant NUM_DONE
     n-jge-done @ asm-resolve
-    \ check rbx == rcx
     48 c, 39 c, cb c, \ CMP RBX, RCX
     asm-jne n-jne-notnum !
     \ apply sign
@@ -1769,14 +2089,40 @@ t-code NUMBER?
     
     \ not_number:
     here constant NUM_NOTNUM
-    n-ja-notnum @ asm-resolve
-    n-jl-notnum @ asm-resolve
+    n-notnum1 @ asm-resolve
+    n-notnum2 @ asm-resolve
+    n-notnum3 @ asm-resolve
+    n-notnum4 @ asm-resolve
+    n-notnum5 @ asm-resolve
+    n-notnum6 @ asm-resolve
     n-jne-notnum @ asm-resolve
     \ push false
     add-rdi-8
     48 c, c7 c, 47 c, f8 c, 00 c, 00 c, 00 c, 00 c, \ MOV [RDI-8], 0
     mov-rax-rdi
     c3 c,
+t-end-code
+
+\ hex ( -- ) : set base to 16
+hex
+t-code hex
+    t-vhere constant XT_HEX
+    48 c, c7 c, c0 c, 10 c, 00 c, 00 c, 00 c, \ mov rax, 16
+    T-BASE-VAR emit-store-rax-var
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ decimal ( -- ) : set base to 10
+hex
+t-code decimal
+    t-vhere constant XT_DECIMAL
+    48 c, c7 c, c0 c, 0a c, 00 c, 00 c, 00 c, \ mov rax, 10
+    T-BASE-VAR emit-store-rax-var
+    mov-rax-rdi
+    c3 c,
+    decimal
 t-end-code
 
 \ --- EXECUTE ( xt -- ) ---
@@ -1889,6 +2235,58 @@ t-code lit,
     T-HERE-VAR emit-store-rbx-var
     mov-rax-rdi
     c3 c,
+t-end-code
+
+\ ' ( "name" -- xt ) : parse name and return XT
+hex
+t-code '
+    t-vhere constant XT_TICK
+    e8 c, XT_PARSE_NAME t-vhere 4 + - 4, \ ( -- addr len )
+    e8 c, XT_FIND t-vhere 4 + - 4,       \ ( -- xt flags true | false )
+    mov-rax-tos
+    cmp-rax-0
+    74 c, 09 c,                         \ je not_found
+    sub-rdi-8                           \ drop true
+    sub-rdi-8                           \ drop flags
+    mov-rax-rdi
+    c3 c,
+    \ not_found:
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ ['] ( "name" -- ) : immediate word to compile XT literal
+hex
+t-code [']
+    t-vhere constant XT_BRACKET_TICK
+    e8 c, XT_PARSE_NAME t-vhere 4 + - 4, \ ( -- addr len )
+    e8 c, XT_FIND t-vhere 4 + - 4,       \ ( -- xt flags true | false )
+    sub-rdi-8                           \ drop true
+    sub-rdi-8                           \ drop flags
+    T-STATE-VAR emit-mov-rax-var
+    emit-test-rax
+    74 c, 09 c,                         \ je interpret_mode
+    e8 c, XT_LITCOMMA t-vhere 4 + - 4,   \ compile mode: lit,
+    mov-rax-rdi
+    c3 c,
+    \ interpret mode:
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+t-immediate
+
+\ (code) ( -- 0 ) : compatibility cell
+hex
+t-code (code)
+    t-vhere constant XT_PAREN_CODE
+    48 c, c7 c, c0 c, 00 c, 00 c, 00 c, 00 c, \ mov rax, 0
+    add-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+    decimal
 t-end-code
 
 \ ============================================================
@@ -2086,6 +2484,54 @@ t-code c-pop ( -- n )
     add-rdi-8
     mov-tos-rax
     mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ c-@ ( -- n ) : fetch top of control stack without popping
+variable cp-at-jle
+t-code c-@ ( -- n )
+    t-vhere constant XT_CFETCH_CSTACK
+    T-CDEPTH emit-mov-rax-var   \ rax = depth
+    48 c, 83 c, f8 c, 00 c,     \ cmp rax, 0
+    asm-jle cp-at-jle !
+    \ non-empty: addr = base + (depth-1)*8
+    T-CSTACK-BASE emit-mov-rbx-var   \ rbx = base
+    48 c, 83 c, e8 c, 01 c,     \ dec rax (depth-1)
+    48 c, 48 c, c1 c, e0 c, 03 c, \ shl rax,3
+    48 c, 01 c, d8 c,           \ add rax, rbx  (rax = addr)
+    48 c, 8b c, 18 c,           \ mov rbx, [rax]  (value)
+    add-rdi-8
+    mov-tos-rbx
+    mov-rax-rdi
+    c3 c,
+    here constant CP_AT_EMPTY
+    cp-at-jle @ asm-resolve
+    \ underflow: push 0
+    48 c, 31 c, c0 c,           \ xor rax, rax
+    add-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+t-end-code
+
+\ >r ( n -- )
+t-code >r ( n -- )
+    t-vhere constant XT_TO_R
+    e8 c, XT_CPUSH t-vhere 4 + - 4,
+    c3 c,
+t-end-code
+
+\ r> ( -- n )
+t-code r> ( -- n )
+    t-vhere constant XT_R_FROM
+    e8 c, XT_CPOP t-vhere 4 + - 4,
+    c3 c,
+t-end-code
+
+\ r@ ( -- n )
+t-code r@ ( -- n )
+    t-vhere constant XT_R_FETCH
+    e8 c, XT_CFETCH_CSTACK t-vhere 4 + - 4,
     c3 c,
 t-end-code
 
@@ -2677,22 +3123,18 @@ t-code evaluate
     sub-rdi-8                   \ pop addr
     48 c, 89 c, c1 c,           \ mov rcx, rax  (rcx = addr)
     \ t-i2b2 fix: SAVE the outer source state (SOURCE-PTR/END/ACTIVE, LINE-MODE,
-    \ PROMPT-FLAG) on the DSP BEFORE any SOURCE-* overwrite below. Previously the
-    \ save happened AFTER the overwrite, so it captured the evaluate-buffer values
-    \ instead of the caller's genuine REPL line-buffer state — dropping tokens that
-    \ followed evaluate()/compile-source. Push order: SOURCE-PTR, SOURCE-END,
-    \ SOURCE-ACTIVE, LINE-MODE, PROMPT-FLAG. All reads occur while these vars still
-    \ hold the genuine OUTER (caller) values.
+    \ PROMPT-FLAG) on the hardware stack (RSP) BEFORE any SOURCE-* overwrite below.
+    \ Push order on RSP: SOURCE-PTR, SOURCE-END, SOURCE-ACTIVE, LINE-MODE, PROMPT-FLAG.
     SOURCE-PTR emit-mov-rax-var
-    add-rdi-8 mov-tos-rax                 \ push saved SOURCE-PTR
+    50 c,                                 \ push rax
     SOURCE-END emit-mov-rax-var
-    add-rdi-8 mov-tos-rax                 \ push saved SOURCE-END
+    50 c,                                 \ push rax
     SOURCE-ACTIVE emit-mov-rax-var
-    add-rdi-8 mov-tos-rax                 \ push saved SOURCE-ACTIVE
+    50 c,                                 \ push rax
     LINE-MODE emit-mov-rax-var
-    add-rdi-8 mov-tos-rax                 \ push saved LINE-MODE
+    50 c,                                 \ push rax
     PROMPT-FLAG emit-mov-rax-var
-    add-rdi-8 mov-tos-rax                 \ push saved PROMPT-FLAG
+    50 c,                                 \ push rax
     \ Setup the evaluate buffer: overwrite SOURCE-* trio (now safe, after save).
     SOURCE-PTR emit-store-rcx-var
     48 c, 89 c, d8 c,           \ mov rax, rbx (len)
@@ -2707,23 +3149,18 @@ t-code evaluate
     LINE-MODE emit-store-rax-var
     \ run REPL over the buffer; REPL clears SOURCE-ACTIVE at its return
     XT_REPL asm-call-sync
-    \ Restore the saved outer state in LIFO order (exact reverse of push order):
+    \ Restore the saved outer state from RSP in LIFO order (exact reverse of push order):
     \ PROMPT-FLAG, LINE-MODE, SOURCE-ACTIVE, SOURCE-END, SOURCE-PTR.
-    mov-rax-tos                           \ rax = saved PROMPT-FLAG
+    58 c,                                 \ pop rax
     PROMPT-FLAG emit-store-rax-var
-    sub-rdi-8                             \ pop saved cell
-    mov-rax-tos                           \ rax = saved LINE-MODE
+    58 c,                                 \ pop rax
     LINE-MODE emit-store-rax-var
-    sub-rdi-8                             \ pop saved cell
-    mov-rax-tos                           \ rax = saved SOURCE-ACTIVE
+    58 c,                                 \ pop rax
     SOURCE-ACTIVE emit-store-rax-var
-    sub-rdi-8                             \ pop saved cell
-    mov-rax-tos                           \ rax = saved SOURCE-END
+    58 c,                                 \ pop rax
     SOURCE-END emit-store-rax-var
-    sub-rdi-8                             \ pop saved cell
-    mov-rax-tos                           \ rax = saved SOURCE-PTR
+    58 c,                                 \ pop rax
     SOURCE-PTR emit-store-rax-var
-    sub-rdi-8                             \ pop saved cell
     \ If STATE is still non-zero (compile mode) when REPL returns, the source
     \ was an unterminated definition (missing ';'). Abort so we do NOT leave
     \ the target silently stuck in compile mode (which would swallow later input).
@@ -2760,21 +3197,16 @@ t-end-code
 \   - constant : pushes the constant value n
 \ (lit, advances HERE by 21; +1 for RET = 22 bytes of body code.)
 
-\ --- allot ( n -- addr ) : advance HERE by n bytes, return the OLD value. ---
-\ Returns the pre-allot HERE (start of the reserved region) as a convenience,
-\ satisfying the task requirement ("allot increments here and returns the old
-\ value"). Stack: ( n -- addr ).
+\ --- allot ( n -- ) : advance HERE by n bytes. ---
 hex
-t-code allot ( n -- addr )
+t-code allot ( n -- )
     t-vhere constant XT_ALLOT
     mov-rax-tos                 \ rax = n
     sub-rdi-8                   \ pop n
     48 c, 89 c, c3 c,           \ mov rbx, rax   (rbx = n)
-    T-HERE-VAR emit-mov-rax-var \ rax = here (old value -> returned)
     T-HERE-VAR emit-mov-rdx-var \ rdx = here
     48 c, 01 c, da c,           \ add rdx, rbx   (rdx = here + n)
     T-HERE-VAR emit-store-rdx-var
-    add-rdi-8 mov-tos-rax       \ push old here (start addr)
     mov-rax-rdi
     c3 c,
     decimal
@@ -2888,107 +3320,182 @@ t-end-code
 variable inc-copy-done
 variable inc-read-done
 hex
-t-code include ( c-addr len -- )
-    t-vhere constant XT_INCLUDE
+t-code included ( c-addr len -- )
+    t-vhere constant XT_INCLUDED
     asm-push-rdi               \ save real DSP (RDI) on return stack
     hex
-    \ --- 1. Null-terminate filename into INCLUDE-FN-BUF ---
-    \ Stack: [RDI-8]=len [RDI-16]=c-addr
-    mov-rax-tos                \ RAX = len
-    48 c, 89 c, c1 c,          \ MOV RCX, RAX  (RCX = len)
-    mov-rax-nos                \ RAX = c-addr
-    48 c, 89 c, c6 c,          \ MOV RSI, RAX  (RSI = src)
-    48 c, bb c, INCLUDE-FN-BUF 8,  \ MOV RBX, INCLUDE-FN-BUF  (dst; keep RDI=DSP intact)
-    \ copy loop: while RCX>0 copy byte
+    \ --- 1. Calculate buffer and filename addresses based on INCLUDE-DEPTH ---
+    \ FN_BUF = INCLUDE-FN-BUF + depth*256
+    INCLUDE-DEPTH emit-mov-rax-var   \ RAX = depth
+    48 c, 89 c, c3 c,                \ MOV RBX, RAX
+    48 c, c1 c, e3 c, 08 c,          \ SHL RBX, 8 (depth*256)
+    48 c, 81 c, c3 c, INCLUDE-FN-BUF 4, \ ADD RBX, INCLUDE-FN-BUF (dst)
+    
+    \ Null-terminate filename into FN_BUF
+    mov-rax-tos                      \ RAX = len
+    48 c, 89 c, c1 c,                \ MOV RCX, RAX (RCX = len)
+    mov-rax-nos                      \ RAX = c-addr
+    48 c, 89 c, c6 c,                \ MOV RSI, RAX (RSI = src)
+    
     here constant INC_COPY_LOOP
-    48 c, 83 c, f9 c, 00 c,    \ CMP RCX, 0
+    48 c, 83 c, f9 c, 00 c,          \ CMP RCX, 0
     asm-je inc-copy-done !
-    8a c, 06 c,                \ MOV AL, [RSI]
-    88 c, 03 c,                \ MOV [RBX], AL
-    48 c, ff c, c6 c,          \ INC RSI
-    48 c, ff c, c3 c,          \ INC RBX
-    48 c, ff c, c9 c,          \ DEC RCX
-    eb c, INC_COPY_LOOP here 1 + - c,  \ JMP INC_COPY_LOOP
+    8a c, 06 c,                      \ MOV AL, [RSI]
+    88 c, 03 c,                      \ MOV [RBX], AL
+    48 c, ff c, c6 c,                \ INC RSI
+    48 c, ff c, c3 c,                \ INC RBX
+    48 c, ff c, c9 c,                \ DEC RCX
+    eb c, INC_COPY_LOOP here 1 + - c, \ JMP INC_COPY_LOOP
     here constant INC_COPY_DONE
     inc-copy-done @ asm-resolve
-    \ append NUL terminator
-    48 c, c6 c, 03 c, 00 c,    \ MOV BYTE [RBX], 0
-    \ --- 2. sys-open(INCLUDE-FN-BUF, 0, 0) -> fd ---
-    \ push path-addr, path-len, flags, mode then call sys-open
-    48 c, b8 c, INCLUDE-FN-BUF 8,  \ mov rax, INCLUDE-FN-BUF
-    add-rdi-8
-    mov-tos-rax                \ push path-addr
-    48 c, b8 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, \ mov rax, 0 (path-len)
-    add-rdi-8
-    mov-tos-rax                \ push path-len
-    48 c, b8 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, \ mov rax, 0 (flags O_RDONLY)
-    add-rdi-8
-    mov-tos-rax                \ push flags
-    48 c, b8 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, \ mov rax, 0 (mode)
-    add-rdi-8
-    mov-tos-rax                \ push mode
-    e8 c, XT_SYS_OPEN t-vhere 4 + - 4,  \ CALL sys-open ( path-addr path-len flags mode -- fd )
-    \ fd is now TOS. Save it in INCLUDE-FD, then pop it.
-    mov-rax-tos                \ rax = fd
-    INCLUDE-FD emit-store-rax-var  \ INCLUDE-FD = fd
-    sub-rdi-8                  \ pop fd
-    \ --- 3. Read loop: sys-read(fd, INCLUDE-SRC-BUF+len, 4096) until <=0 ---
-    \ INCLUDE-LEN = 0
-    48 c, 31 c, c0 c,          \ xor rax, rax
-    INCLUDE-LEN emit-store-rax-var  \ INCLUDE-LEN = 0
-    \ read_loop:
+    48 c, c6 c, 03 c, 00 c,          \ MOV BYTE [RBX], 0
+    
+    \ --- 2. sys-open(FN_BUF, 0, 0) -> fd ---
+    INCLUDE-DEPTH emit-mov-rax-var
+    48 c, c1 c, e0 c, 08 c,          \ SHL RAX, 8
+    48 c, 05 c, INCLUDE-FN-BUF 4,    \ ADD RAX, INCLUDE-FN-BUF
+    add-rdi-8 mov-tos-rax            \ push FN_BUF
+    48 c, 31 c, c0 c,                \ XOR RAX, RAX
+    add-rdi-8 mov-tos-rax            \ push path-len (0)
+    add-rdi-8 mov-tos-rax            \ push flags (0)
+    add-rdi-8 mov-tos-rax            \ push mode (0)
+    e8 c, XT_SYS_OPEN t-vhere 4 + - 4, \ CALL sys-open
+    mov-rax-tos                      \ RAX = fd
+    INCLUDE-FD emit-store-rax-var    \ save fd in INCLUDE-FD
+    sub-rdi-8                        \ pop fd
+    
+    \ --- 3. Read loop: sys-read(fd, INC-BUF-BASE + depth*0x40000 + len, 4096) ---
+    48 c, 31 c, c0 c,                \ XOR RAX, RAX
+    INCLUDE-LEN emit-store-rax-var   \ INCLUDE-LEN = 0
+    
     here constant INC_READ_LOOP
-    \ push fd, addr, len then call sys-read
-    INCLUDE-FD emit-mov-rax-var     \ rax = fd
-    add-rdi-8
-    mov-tos-rax                \ push fd
-    \ addr = INCLUDE-SRC-BUF + INCLUDE-LEN
-    INCLUDE-LEN emit-mov-rax-var    \ rax = INCLUDE-LEN
-    48 c, bb c, INCLUDE-SRC-BUF 8, \ mov rbx, INCLUDE-SRC-BUF
-    48 c, 01 c, d8 c,          \ add rax, rbx  (addr = base + len)
-    add-rdi-8
-    mov-tos-rax                \ push addr
-    48 c, b8 c, 00 c, 10 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, \ mov rax, 4096
-    add-rdi-8
-    mov-tos-rax                \ push len
-    e8 c, XT_SYS_READ t-vhere 4 + - 4,  \ CALL sys-read ( fd addr len -- count )
-    \ count is TOS. Pop it into RAX.
-    mov-rax-tos                \ rax = count
-    sub-rdi-8                  \ pop count
-    \ If count <= 0, done.
-    48 c, 83 c, f8 c, 00 c,    \ cmp rax, 0
+    INCLUDE-FD emit-mov-rax-var      \ RAX = fd
+    add-rdi-8 mov-tos-rax            \ push fd
+    
+    \ addr = INC-BUF-BASE + depth*0x40000 + INCLUDE-LEN
+    INCLUDE-DEPTH emit-mov-rax-var
+    48 c, c1 c, e0 c, 12 c,          \ SHL RAX, 18 (depth*262144 / 0x40000)
+    48 c, 05 c, INC-BUF-BASE 4,      \ ADD RAX, INC-BUF-BASE
+    INCLUDE-LEN emit-mov-rbx-var
+    48 c, 01 c, d8 c,                \ ADD RAX, RBX
+    add-rdi-8 mov-tos-rax            \ push addr
+    
+    48 c, b8 c, 00 c, 10 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, \ MOV RAX, 4096
+    add-rdi-8 mov-tos-rax            \ push len (4096)
+    e8 c, XT_SYS_READ t-vhere 4 + - 4, \ CALL sys-read
+    mov-rax-tos                      \ RAX = count
+    sub-rdi-8                        \ pop count
+    48 c, 83 c, f8 c, 00 c,          \ CMP RAX, 0
     asm-jle inc-read-done !
-    \ INCLUDE-LEN += count
-    INCLUDE-LEN emit-mov-rbx-var   \ rbx = INCLUDE-LEN
-    48 c, 01 c, c3 c,          \ add rbx, rax  (rbx = len + count)
-    INCLUDE-LEN emit-store-rbx-var \ INCLUDE-LEN = len + count
-    eb c, INC_READ_LOOP here 1 + - c,  \ JMP INC_READ_LOOP
+    INCLUDE-LEN emit-mov-rbx-var
+    48 c, 01 c, c3 c,                \ RBX = len + count
+    INCLUDE-LEN emit-store-rbx-var
+    eb c, INC_READ_LOOP here 1 + - c,
     here constant INC_READ_DONE
     inc-read-done @ asm-resolve
+    
     \ --- 4. sys-close(fd) ---
-    INCLUDE-FD emit-mov-rax-var     \ rax = fd
-    add-rdi-8
-    mov-tos-rax                \ push fd
-    e8 c, XT_SYS_CLOSE t-vhere 4 + - 4,  \ CALL sys-close ( fd -- status )
-    sub-rdi-8                  \ drop status
-    \ --- 5. Restore real DSP, push args, evaluate ---
-    \ The file I/O above used RDI as a temporary scratch stack. Restore the
-    \ real DSP (saved on the return stack) so EVALUATE runs the REPL with the
-    \ correct data stack pointer.
-    asm-pop-rdi                \ restore real DSP
-    \ push INCLUDE-SRC-BUF (addr)
-    48 c, b8 c, INCLUDE-SRC-BUF 8, \ mov rax, INCLUDE-SRC-BUF
-    add-rdi-8
-    mov-tos-rax                \ push addr
-    \ push INCLUDE-LEN (len)
-    INCLUDE-LEN emit-mov-rax-var    \ rax = INCLUDE-LEN
-    add-rdi-8
-    mov-tos-rax                \ push len
-    e8 c, XT_EVALUATE t-vhere 4 + - 4,  \ CALL evaluate ( addr len -- )
-    \ --- Done: pop original args (len, c-addr), return ---
-    sub-rdi-8                  \ pop len
-    sub-rdi-8                  \ pop c-addr
+    INCLUDE-FD emit-mov-rax-var
+    add-rdi-8 mov-tos-rax
+    e8 c, XT_SYS_CLOSE t-vhere 4 + - 4,
+    sub-rdi-8                        \ drop status
+    
+    \ --- 5. Increment INCLUDE-DEPTH before EVALUATE ---
+    INCLUDE-DEPTH emit-mov-rax-var
+    48 c, ff c, c0 c,                \ INC RAX
+    INCLUDE-DEPTH emit-store-rax-var
+    
+    \ --- 6. Restore real DSP, pop (c-addr len) args, push (buf len) ---
+    asm-pop-rdi                      \ restore real DSP
+    sub-rdi-8                        \ pop original len
+    sub-rdi-8                        \ pop original c-addr
+    
+    \ push buf = INC-BUF-BASE + (depth-1)*0x40000
+    INCLUDE-DEPTH emit-mov-rax-var
+    48 c, ff c, c8 c,                \ DEC RAX (depth-1)
+    48 c, c1 c, e0 c, 12 c,          \ SHL RAX, 18
+    48 c, 05 c, INC-BUF-BASE 4,      \ ADD RAX, INC-BUF-BASE
+    add-rdi-8 mov-tos-rax            \ push buf
+    
+    \ push len
+    INCLUDE-LEN emit-mov-rax-var
+    add-rdi-8 mov-tos-rax            \ push len
+    
+    \ --- 7. Call EVALUATE ---
+    e8 c, XT_EVALUATE t-vhere 4 + - 4, \ CALL evaluate ( buf len -- )
+    48 c, 89 c, c7 c,                  \ mov rdi, rax (re-sync DSP from evaluate)
+    
+    \ --- 8. Decrement INCLUDE-DEPTH after EVALUATE ---
+    INCLUDE-DEPTH emit-mov-rax-var
+    48 c, ff c, c8 c,                \ DEC RAX
+    INCLUDE-DEPTH emit-store-rax-var
+    
     mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ include ( "name" -- ) : parse filename and execute included
+hex
+t-code include
+    t-vhere constant XT_INCLUDE
+    e8 c, XT_PARSE_NAME t-vhere 4 + - 4, \ ( -- c-addr len )
+    48 c, 89 c, c7 c,                    \ mov rdi, rax
+    e8 c, XT_INCLUDED t-vhere 4 + - 4,   \ CALL included
+    48 c, 89 c, c7 c,                    \ mov rdi, rax
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ (here) ( -- addr )
+hex
+t-code (here)
+    t-vhere constant XT_PAREN_HERE
+    T-HERE-VAR emit-mov-rax-var
+    add-rdi-8 mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ (allot) ( n -- )
+hex
+t-code (allot)
+    t-vhere constant XT_PAREN_ALLOT
+    e8 c, XT_ALLOT t-vhere 4 + - 4,
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ (,) ( n -- )
+hex
+t-code (,)
+    t-vhere constant XT_PAREN_COMMA
+    e8 c, XT_COMMA t-vhere 4 + - 4,
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ (c,) ( ch -- )
+hex
+t-code (c,)
+    t-vhere constant XT_PAREN_CCOMMA
+    e8 c, XT_CCOMMA t-vhere 4 + - 4,
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ bye ( -- )
+hex
+t-code bye
+    t-vhere constant XT_BYE
+    48 c, c7 c, c7 c, 00 c, 00 c, 00 c, 00 c, \ mov rdi, 0
+    48 c, c7 c, c0 c, 3c c, 00 c, 00 c, 00 c, \ mov rax, 60
+    syscall
     c3 c,
     decimal
 t-end-code
@@ -3104,9 +3611,9 @@ variable ds-done
 hex
 t-code .s ( -- )
     t-vhere constant XT_DOT_S
-    \ r12 = saved DSP; r13 = stack base 0x410000 (loop pointer)
+    \ r12 = saved DSP; r13 = stack base 0x800000 (loop pointer)
     49 c, 89 c, fc c,             \ MOV R12, RDI
-    49 c, bd c, 410000 8,         \ MOV R13, 0x410000
+    49 c, bd c, 800000 8,         \ MOV R13, 0x800000
     \ push depth = (R12 - R13) >> 3
     4c c, 89 c, e0 c,             \ MOV RAX, R12
     4c c, 29 c, e8 c,             \ SUB RAX, R13
@@ -3377,8 +3884,8 @@ t-code START
     IS-TTY-FLAG emit-store-rax-var
     PROMPT-FLAG emit-store-rax-var
     \ Init stacks
-    48 c, c7 c, c7 c, 00 c, 00 c, 41 c, 00 c, \ MOV RDI, 410000 (DSP)
-    48 c, bc c, 420000 8,                     \ MOV RSP, 420000
+    48 c, c7 c, c7 c, 00 c, 00 c, 80 c, 00 c, \ MOV RDI, 800000 (DSP)
+    48 c, bc c, 900000 8,                     \ MOV RSP, 900000
     decimal
     \ Reset interpreter state at boot
     0 emit-mov-rax-imm
@@ -3387,6 +3894,8 @@ t-code START
     SOURCE-END emit-store-rax-var
     T-STATE-VAR emit-store-rax-var
     T-CDEPTH emit-store-rax-var
+    10 emit-mov-rax-imm
+    T-BASE-VAR emit-store-rax-var
     \ t-i2a1: enable line-oriented REPL mode for interactive input.
     \ LINE-MODE=1 makes the REPL read full lines (refill on exhaustion,
     \ print prompt, continue) and keeps evaluate/compile-source in
@@ -3416,6 +3925,7 @@ t-end-code
 
 \ --- Final Patching ---
 decimal
+t-vhere T-HERE-VAR virt>host !
 target-latest @ T-LATEST-VAR virt>host !
 \ Patch ABORT-VT with the abort word's target XT so the REPL/EVALUATE
 \ indirect call finds it. ABORT-VT is a target cell; store the XT into it.
@@ -3428,6 +3938,6 @@ target-base @ target-dp !
 ENTRY-POINT BIN-SIZE 1000000 elf-header
 target-base @ BIN-SIZE + target-dp !
 
-s" vagaforth.bin" save-elf
+s" vagaforth_new.bin" host-save-elf
 target-off
 bye

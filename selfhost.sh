@@ -43,15 +43,14 @@ GEN2_BIN="vagaforth_new.bin"     # second-generation self-compiled binary
 # Minimum reasonable size for the self-compiled binary (bytes).
 MIN_SIZE=8000
 
-# Functional test program (uses `square`, defined in kernel/kernel_self.fs
-# which is compiled into the self-hosted binary).
-TEST_PROG='5 square . cr'
+# Functional test program (user colon definition `sq` -> 5*5 = 25).
+TEST_PROG=': sq dup * ; 5 sq . cr bye'
 TEST_EXPECTED='25'
 TEST_TIMEOUT=10
 
 # --- Stage 1: Build the host-side C interpreter ------------------------------
 echo "=============================================================="
-echo "Stage 1/4: Building host-side C interpreter (make)"
+echo "Stage 1/5: Building host-side C interpreter (make)"
 echo "=============================================================="
 make
 echo "  [OK] Host interpreter built: $HOST_BIN"
@@ -59,7 +58,7 @@ echo
 
 # --- Stage 2: Cross-compile the target kernel --------------------------------
 echo "=============================================================="
-echo "Stage 2/4: Cross-compiling target kernel -> $GEN1_BIN"
+echo "Stage 2/5: Cross-compiling target kernel -> $GEN1_BIN"
 echo "=============================================================="
 ./"$HOST_BIN" "$KERNEL_SRC"
 if [ ! -f "$GEN1_BIN" ]; then
@@ -71,7 +70,7 @@ echo
 
 # --- Stage 3: Self-compile the target ----------------------------------------
 echo "=============================================================="
-echo "Stage 3/4: Self-compiling ($GEN1_BIN < $SELFHOST_SRC) -> $GEN2_BIN"
+echo "Stage 3/5: Self-compiling ($GEN1_BIN < $SELFHOST_SRC) -> $GEN2_BIN"
 echo "=============================================================="
 timeout 60 ./"$GEN1_BIN" < "$SELFHOST_SRC"
 if [ ! -f "$GEN2_BIN" ]; then
@@ -80,10 +79,6 @@ if [ ! -f "$GEN2_BIN" ]; then
 fi
 echo "  [OK] Second-generation self-compiled binary produced: $GEN2_BIN"
 
-# Derive the expected entry point from the freshly produced binary's actual
-# `e_entry` field (`readelf -h ... | grep Entry`) instead of a stale literal.
-# This value corresponds to the `START` word in the target image, so Stage 4
-# verification tracks whatever the kernel reports at build time.
 EXPECTED_ENTRY="$(readelf -h "$GEN2_BIN" 2>/dev/null | awk '/Entry point address:/{print $4}')"
 if [ -z "$EXPECTED_ENTRY" ]; then
     echo "  [FAIL] Could not read entry point from $GEN2_BIN (readelf -h)." >&2
@@ -92,12 +87,25 @@ fi
 echo "  Derived expected entry point from $GEN2_BIN: $EXPECTED_ENTRY"
 echo
 
-# --- Stage 4: Verification ----------------------------------------------------
+# --- Stage 4: Fixed-Point Identity Verification -----------------------------
 echo "=============================================================="
-echo "Stage 4/4: Verifying $GEN2_BIN"
+echo "Stage 4/5: Verifying Bit-For-Bit Fixed Point ($GEN1_BIN == $GEN2_BIN)"
+echo "=============================================================="
+if diff -q "$GEN1_BIN" "$GEN2_BIN" >/dev/null; then
+    echo "  [OK] Exact match: $GEN1_BIN and $GEN2_BIN are 100% bit-for-bit identical!"
+else
+    echo "  [FAIL] Fixed-point mismatch: $GEN1_BIN != $GEN2_BIN" >&2
+    diff -u <(xxd "$GEN1_BIN") <(xxd "$GEN2_BIN") | head -n 30 >&2
+    exit 1
+fi
+echo
+
+# --- Stage 5: Functional Verification ----------------------------------------
+echo "=============================================================="
+echo "Stage 5/5: Functional Verification of $GEN2_BIN"
 echo "=============================================================="
 
-# 4a. Non-empty and reasonable size.
+# 5a. Non-empty and reasonable size.
 if [ ! -s "$GEN2_BIN" ]; then
     echo "  [FAIL] $GEN2_BIN is empty." >&2
     exit 1
@@ -109,7 +117,7 @@ if [ "$SIZE" -lt "$MIN_SIZE" ]; then
 fi
 echo "  [OK] Size check: $SIZE bytes (>= $MIN_SIZE)"
 
-# 4b. Valid ELF64 x86-64 executable via `file`.
+# 5b. Valid ELF64 x86-64 executable via `file`.
 FILE_OUT="$(file "$GEN2_BIN")"
 echo "  file: $FILE_OUT"
 if ! echo "$FILE_OUT" | grep -q "ELF 64-bit LSB executable, x86-64"; then
@@ -118,7 +126,7 @@ if ! echo "$FILE_OUT" | grep -q "ELF 64-bit LSB executable, x86-64"; then
 fi
 echo "  [OK] file identifies a valid ELF64 x86-64 executable"
 
-# 4c. Entry point check via `readelf -h`.
+# 5c. Entry point check via `readelf -h`.
 ENTRY="$(readelf -h "$GEN2_BIN" 2>/dev/null | awk '/Entry point address:/{print $4}')"
 echo "  entry point: $ENTRY (expected $EXPECTED_ENTRY)"
 if [ "$ENTRY" != "$EXPECTED_ENTRY" ]; then
@@ -127,7 +135,7 @@ if [ "$ENTRY" != "$EXPECTED_ENTRY" ]; then
 fi
 echo "  [OK] Entry point matches current architecture ($EXPECTED_ENTRY)"
 
-# 4d. Functional check: feed a test program via stdin under `timeout`,
+# 5d. Functional check: feed a test program via stdin under `timeout`,
 #     assert expected output and exit 0.
 echo "  functional test: '$TEST_PROG' (expected output: '$TEST_EXPECTED')"
 OUTPUT="$(printf '%s\n' "$TEST_PROG" | timeout "$TEST_TIMEOUT" ./"$GEN2_BIN" 2>&1)"
@@ -137,12 +145,6 @@ if [ "$RC" -ne 0 ]; then
     echo "  Output was: $OUTPUT" >&2
     exit 1
 fi
-# The REPL emits a banner and a prompt before/after each evaluated line, so the
-# raw output stream is `...<banner>...<prompt>* <result><prompt>...`. A strict
-# string equality against `$TEST_EXPECTED` would fail purely cosmetically even
-# though the word executes correctly. Assert the FUNCTIONAL success instead:
-#   (a) the process exited 0 (already verified above), and
-#   (b) the expected value is actually produced in the output stream.
 if ! echo "$OUTPUT" | grep -Fq "$TEST_EXPECTED"; then
     echo "  [FAIL] Functional test output mismatch." >&2
     echo "  Expected '$TEST_EXPECTED' not found in output: '$OUTPUT'" >&2
@@ -152,7 +154,8 @@ echo "  [OK] Functional test passed ('$TEST_EXPECTED' produced in output, exit 0
 
 echo
 echo "=============================================================="
-echo "SELF-HOSTING BOOTSTRAP COMPLETE"
-echo "  $GEN1_BIN  (first generation, cross-compiled)"
-echo "  $GEN2_BIN  (second generation, self-compiled)"
+echo "TRUE SELF-HOSTING FIXED-POINT BOOTSTRAP COMPLETE"
+echo "  $GEN1_BIN  (first generation, cross-compiled by C host)"
+echo "  $GEN2_BIN  (second generation, self-compiled by native Forth)"
+echo "  Fixed Point: diff -q $GEN1_BIN $GEN2_BIN => IDENTICAL"
 echo "=============================================================="

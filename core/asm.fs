@@ -152,40 +152,5 @@ variable _jmp32-adr
     asm-resolve  \ 3. Lös upp IF-hoppet så det landar här (starten av ELSE)
     ;            \ 4. Lämna addr2 på stacken för THEN
 
-\ --- Examples ---
-
-\ : native-abs ( n -- |n| )
-code native-abs
-    mov-rax-tos
-    cmp-rax-0
-    7d asm-jump-op \ JGE
-    
-    48 c, f7 c, d8 c, \ NEG RAX
-    
-    asm-then
-    
-    mov-tos-rax
-    mov-rax-rdi
-end-code
-
-\ : native-max ( a b -- max )
-code native-max
-    mov-rax-tos    \ RAX = b
-    mov-rbx-nos    \ RBX = a
-    
-    cmp-rax-rbx
-    asm-jg         \ Om b > a (JG), hoppa till ELSE
-        \ Fallthrough: b <= a. Dvs a (RBX) är max.
-        48 c, 89 c, d8 c, \ MOV RAX, RBX
-    asm-else
-        \ Jump target: b > a. Dvs b (RAX) är max.
-        \ Gör inget, RAX är redan b.
-    asm-then
-    
-    sub-rdi-8      \ Pop NOS
-    mov-tos-rax    \ Spara resultatet
-    mov-rax-rdi
-end-code
-
 decimal
 ." Assembler loaded (Control Flow)." cr

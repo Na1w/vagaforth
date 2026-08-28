@@ -94,13 +94,13 @@ hex
 
 variable filename-buf 256 allot
 
-: save-elf ( filename-addr filename-len -- )
+: host-save-elf ( filename-addr filename-len -- )
     \ 1. Null-terminate filename
     filename-buf 256 0 fill  \ Clean buffer
     filename-buf swap cmove  \ Copy string
     
-    \ 2. Create file (Mode 0755 = rwxr-xr-x = 1ED hex)
-    filename-buf 1ED sys-creat
+    \ 2. Create file (Mode 0755 = rwxr-xr-x = 1ed hex)
+    filename-buf hex 1ed sys-creat
     dup 0 < if
         ." Error creating file." cr drop exit
     then
@@ -120,4 +120,17 @@ variable filename-buf 256 allot
     r> sys-close drop
     ." Saved binary." cr
     ;
+
+: save-elf host-save-elf ;
+
+variable output-bin-addr
+variable output-bin-len
+
+: set-output-bin ( addr len -- )
+    output-bin-len ! output-bin-addr ! ;
+
+output-bin-addr @ if
+else
+    s" vagaforth.bin" set-output-bin
+then
 
