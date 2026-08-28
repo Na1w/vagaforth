@@ -126,7 +126,7 @@ hex
 430E10 constant INCLUDE-LEN
 430E18 constant INCLUDE-FN-BUF
 431000 constant INCLUDE-SRC-BUF
-E0000000 constant INC-BUF-BASE
+70000000 constant INC-BUF-BASE
 
 \ t-b1c3: save-elf-at scratch buffers (target RAM, above INCLUDE-SRC-BUF 0x431000).
 \ The runtime s" primitive reuses one shared S-BUF-ADDR, so consecutive s"
@@ -3360,6 +3360,7 @@ t-code included ( c-addr len -- )
     add-rdi-8 mov-tos-rax            \ push flags (0)
     add-rdi-8 mov-tos-rax            \ push mode (0)
     e8 c, XT_SYS_OPEN t-vhere 4 + - 4, \ CALL sys-open
+    48 c, 89 c, c7 c,                \ mov rdi, rax (sync DSP)
     mov-rax-tos                      \ RAX = fd
     INCLUDE-FD emit-store-rax-var    \ save fd in INCLUDE-FD
     sub-rdi-8                        \ pop fd
@@ -3383,6 +3384,7 @@ t-code included ( c-addr len -- )
     48 c, b8 c, 00 c, 10 c, 00 c, 00 c, 00 c, 00 c, 00 c, 00 c, \ MOV RAX, 4096
     add-rdi-8 mov-tos-rax            \ push len (4096)
     e8 c, XT_SYS_READ t-vhere 4 + - 4, \ CALL sys-read
+    48 c, 89 c, c7 c,                \ mov rdi, rax (sync DSP)
     mov-rax-tos                      \ RAX = count
     sub-rdi-8                        \ pop count
     48 c, 83 c, f8 c, 00 c,          \ CMP RAX, 0
@@ -3398,6 +3400,7 @@ t-code included ( c-addr len -- )
     INCLUDE-FD emit-mov-rax-var
     add-rdi-8 mov-tos-rax
     e8 c, XT_SYS_CLOSE t-vhere 4 + - 4,
+    48 c, 89 c, c7 c,                \ mov rdi, rax (sync DSP)
     sub-rdi-8                        \ drop status
     
     \ --- 5. Increment INCLUDE-DEPTH before EVALUATE ---

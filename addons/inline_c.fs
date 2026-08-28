@@ -1,19 +1,19 @@
-create c-src-buf 65536 allot drop
-create c-str-pool 65536 allot drop
+create c-src-buf 65536 allot
+create c-str-pool 65536 allot
 variable c-str-pool-ptr
 
-create c-tok-str 64 allot drop
-create c-fn-name-buf 64 allot drop
+create c-tok-str 64 allot
+create c-fn-name-buf 64 allot
 create c-var-name-buf 64 allot
-create c-call-name-buf 64 allot drop
-variable c-call-name-len drop
-create c-vars-name 1024 allot drop
-create c-vars-len 128 allot drop
-create c-vars-off 128 allot drop
-create c-funcs-name 1024 allot drop
-create c-funcs-len 64 allot drop
-create c-funcs-xt 64 allot drop
-create c-funcs-nargs 64 allot drop
+create c-call-name-buf 64 allot
+variable c-call-name-len
+create c-vars-name 4096 allot align8
+create c-vars-len 512 allot align8
+create c-vars-off 512 allot align8
+create c-funcs-name 4096 allot align8
+create c-funcs-len 512 allot align8
+create c-funcs-xt 512 allot align8
+create c-funcs-nargs 512 allot align8
 
 variable c-src-ptr
 variable c-src-end
@@ -46,23 +46,152 @@ variable fn-xt
 
 variable c-putchar-xt
 HERE c-putchar-xt !
-85 c, 72 c, 137 c, 229 c, 72 c, 131 c, 236 c, 16 c, 72 c, 137 c, 125 c, 248 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 141 c, 117 c, 248 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c, 72 c, 137 c, 236 c, 93 c, 195 c,
+85 c, 72 c, 137 c, 229 c, 72 c, 131 c, 236 c, 16 c, 72 c, 137 c,
+125 c, 248 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c,
+199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 141 c, 117 c, 248 c,
+72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c, 72 c,
+137 c, 236 c, 93 c, 195 c,
 
 variable c-getchar-xt
 HERE c-getchar-xt !
-85 c, 72 c, 137 c, 229 c, 72 c, 131 c, 236 c, 16 c, 72 c, 199 c, 69 c, 248 c, 0 c, 0 c, 0 c, 0 c, 72 c, 199 c, 192 c, 0 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 0 c, 0 c, 0 c, 0 c, 72 c, 141 c, 117 c, 248 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c, 72 c, 133 c, 192 c, 126 c, 7 c, 72 c, 15 c, 182 c, 69 c, 248 c, 235 c, 7 c, 72 c, 199 c, 192 c, 255 c, 255 c, 255 c, 255 c, 72 c, 137 c, 236 c, 93 c, 195 c,
+85 c, 72 c, 137 c, 229 c, 72 c, 131 c, 236 c, 16 c, 72 c, 199 c,
+69 c, 248 c, 0 c, 0 c, 0 c, 0 c, 72 c, 199 c, 192 c, 0 c,
+0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 0 c, 0 c, 0 c, 0 c,
+72 c, 141 c, 117 c, 248 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c,
+0 c, 15 c, 5 c, 72 c, 133 c, 192 c, 126 c, 7 c, 72 c, 15 c,
+182 c, 69 c, 248 c, 235 c, 7 c, 72 c, 199 c, 192 c, 255 c, 255 c,
+255 c, 255 c, 72 c, 137 c, 236 c, 93 c, 195 c,
 
 variable c-puts-xt
 HERE c-puts-xt !
-85 c, 72 c, 137 c, 229 c, 65 c, 84 c, 73 c, 137 c, 252 c, 72 c, 49 c, 201 c, 65 c, 128 c, 60 c, 12 c, 0 c, 116 c, 5 c, 72 c, 255 c, 193 c, 235 c, 244 c, 72 c, 137 c, 202 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 76 c, 137 c, 230 c, 15 c, 5 c, 72 c, 131 c, 236 c, 16 c, 198 c, 4 c, 36 c, 10 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 137 c, 230 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c, 72 c, 131 c, 196 c, 16 c, 72 c, 49 c, 192 c, 65 c, 92 c, 72 c, 137 c, 236 c, 93 c, 195 c,
+85 c, 72 c, 137 c, 229 c, 65 c, 84 c, 73 c, 137 c, 252 c, 72 c,
+49 c, 201 c, 65 c, 128 c, 60 c, 12 c, 0 c, 116 c, 5 c, 72 c,
+255 c, 193 c, 235 c, 244 c, 72 c, 137 c, 202 c, 72 c, 199 c, 192 c,
+1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c,
+0 c, 76 c, 137 c, 230 c, 15 c, 5 c, 72 c, 131 c, 236 c, 16 c,
+198 c, 4 c, 36 c, 10 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c,
+0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 137 c,
+230 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c,
+72 c, 131 c, 196 c, 16 c, 72 c, 49 c, 192 c, 65 c, 92 c, 72 c,
+137 c, 236 c, 93 c, 195 c,
 
 variable c-gets-xt
 HERE c-gets-xt !
-85 c, 72 c, 137 c, 229 c, 65 c, 84 c, 65 c, 85 c, 73 c, 137 c, 252 c, 77 c, 49 c, 237 c, 72 c, 131 c, 236 c, 16 c, 72 c, 199 c, 192 c, 0 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 0 c, 0 c, 0 c, 0 c, 72 c, 137 c, 230 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c, 72 c, 133 c, 192 c, 126 c, 24 c, 138 c, 4 c, 36 c, 72 c, 131 c, 196 c, 16 c, 60 c, 10 c, 116 c, 34 c, 60 c, 13 c, 116 c, 206 c, 67 c, 136 c, 4 c, 44 c, 73 c, 255 c, 197 c, 235 c, 197 c, 72 c, 131 c, 196 c, 16 c, 77 c, 133 c, 237 c, 117 c, 12 c, 72 c, 49 c, 192 c, 65 c, 93 c, 65 c, 92 c, 72 c, 137 c, 236 c, 93 c, 195 c, 67 c, 198 c, 4 c, 44 c, 0 c, 76 c, 137 c, 224 c, 65 c, 93 c, 65 c, 92 c, 72 c, 137 c, 236 c, 93 c, 195 c,
+85 c, 72 c, 137 c, 229 c, 65 c, 84 c, 65 c, 85 c, 73 c, 137 c,
+252 c, 77 c, 49 c, 237 c, 72 c, 131 c, 236 c, 16 c, 72 c, 199 c,
+192 c, 0 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 0 c, 0 c,
+0 c, 0 c, 72 c, 137 c, 230 c, 72 c, 199 c, 194 c, 1 c, 0 c,
+0 c, 0 c, 15 c, 5 c, 72 c, 133 c, 192 c, 126 c, 24 c, 138 c,
+4 c, 36 c, 72 c, 131 c, 196 c, 16 c, 60 c, 10 c, 116 c, 34 c,
+60 c, 13 c, 116 c, 206 c, 67 c, 136 c, 4 c, 44 c, 73 c, 255 c,
+197 c, 235 c, 197 c, 72 c, 131 c, 196 c, 16 c, 77 c, 133 c, 237 c,
+117 c, 12 c, 72 c, 49 c, 192 c, 65 c, 93 c, 65 c, 92 c, 72 c,
+137 c, 236 c, 93 c, 195 c, 67 c, 198 c, 4 c, 44 c, 0 c, 76 c,
+137 c, 224 c, 65 c, 93 c, 65 c, 92 c, 72 c, 137 c, 236 c, 93 c,
+195 c,
 
 variable c-printf-xt
 HERE c-printf-xt !
-85 c, 72 c, 137 c, 229 c, 83 c, 65 c, 84 c, 65 c, 85 c, 65 c, 86 c, 65 c, 87 c, 72 c, 129 c, 236 c, 128 c, 0 c, 0 c, 0 c, 73 c, 137 c, 252 c, 72 c, 137 c, 117 c, 176 c, 72 c, 137 c, 85 c, 184 c, 72 c, 137 c, 77 c, 192 c, 76 c, 137 c, 69 c, 200 c, 76 c, 137 c, 77 c, 208 c, 77 c, 49 c, 237 c, 73 c, 15 c, 182 c, 4 c, 36 c, 132 c, 192 c, 15 c, 132 c, 190 c, 1 c, 0 c, 0 c, 60 c, 37 c, 117 c, 54 c, 73 c, 255 c, 196 c, 73 c, 15 c, 182 c, 4 c, 36 c, 132 c, 192 c, 15 c, 132 c, 170 c, 1 c, 0 c, 0 c, 60 c, 37 c, 116 c, 34 c, 60 c, 99 c, 116 c, 72 c, 60 c, 115 c, 116 c, 121 c, 60 c, 100 c, 15 c, 132 c, 192 c, 0 c, 0 c, 0 c, 60 c, 105 c, 15 c, 132 c, 184 c, 0 c, 0 c, 0 c, 60 c, 120 c, 15 c, 132 c, 39 c, 1 c, 0 c, 0 c, 235 c, 0 c, 72 c, 131 c, 236 c, 16 c, 136 c, 4 c, 36 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 137 c, 230 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c, 72 c, 131 c, 196 c, 16 c, 73 c, 255 c, 196 c, 235 c, 143 c, 74 c, 139 c, 68 c, 237 c, 176 c, 73 c, 255 c, 197 c, 72 c, 131 c, 236 c, 16 c, 136 c, 4 c, 36 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 137 c, 230 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c, 72 c, 131 c, 196 c, 16 c, 73 c, 255 c, 196 c, 233 c, 90 c, 255 c, 255 c, 255 c, 78 c, 139 c, 116 c, 237 c, 176 c, 73 c, 255 c, 197 c, 77 c, 133 c, 246 c, 117 c, 8 c, 73 c, 255 c, 196 c, 233 c, 69 c, 255 c, 255 c, 255 c, 73 c, 15 c, 182 c, 6 c, 132 c, 192 c, 116 c, 42 c, 72 c, 131 c, 236 c, 16 c, 136 c, 4 c, 36 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 137 c, 230 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c, 72 c, 131 c, 196 c, 16 c, 73 c, 255 c, 198 c, 235 c, 206 c, 73 c, 255 c, 196 c, 233 c, 11 c, 255 c, 255 c, 255 c, 74 c, 139 c, 68 c, 237 c, 176 c, 73 c, 255 c, 197 c, 72 c, 131 c, 236 c, 32 c, 76 c, 141 c, 116 c, 36 c, 30 c, 65 c, 198 c, 6 c, 0 c, 72 c, 133 c, 192 c, 121 c, 12 c, 72 c, 247 c, 216 c, 73 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 235 c, 3 c, 77 c, 49 c, 255 c, 72 c, 49 c, 210 c, 72 c, 199 c, 195 c, 10 c, 0 c, 0 c, 0 c, 72 c, 247 c, 243 c, 128 c, 194 c, 48 c, 73 c, 255 c, 206 c, 65 c, 136 c, 22 c, 72 c, 133 c, 192 c, 117 c, 229 c, 77 c, 133 c, 255 c, 116 c, 7 c, 73 c, 255 c, 206 c, 65 c, 198 c, 6 c, 45 c, 72 c, 141 c, 84 c, 36 c, 30 c, 76 c, 41 c, 242 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 76 c, 137 c, 246 c, 15 c, 5 c, 72 c, 131 c, 196 c, 32 c, 73 c, 255 c, 196 c, 233 c, 148 c, 254 c, 255 c, 255 c, 74 c, 139 c, 68 c, 237 c, 176 c, 73 c, 255 c, 197 c, 72 c, 131 c, 236 c, 32 c, 76 c, 141 c, 116 c, 36 c, 30 c, 65 c, 198 c, 6 c, 0 c, 72 c, 137 c, 194 c, 72 c, 131 c, 226 c, 15 c, 128 c, 250 c, 10 c, 124 c, 5 c, 128 c, 194 c, 87 c, 235 c, 3 c, 128 c, 194 c, 48 c, 73 c, 255 c, 206 c, 65 c, 136 c, 22 c, 72 c, 193 c, 232 c, 4 c, 72 c, 133 c, 192 c, 117 c, 221 c, 72 c, 141 c, 84 c, 36 c, 30 c, 76 c, 41 c, 242 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 76 c, 137 c, 246 c, 15 c, 5 c, 72 c, 131 c, 196 c, 32 c, 73 c, 255 c, 196 c, 233 c, 53 c, 254 c, 255 c, 255 c, 72 c, 49 c, 192 c, 72 c, 129 c, 196 c, 128 c, 0 c, 0 c, 0 c, 65 c, 95 c, 65 c, 94 c, 65 c, 93 c, 65 c, 92 c, 91 c, 72 c, 137 c, 236 c, 93 c, 195 c,
+85 c, 72 c, 137 c, 229 c, 83 c, 65 c, 84 c, 65 c, 85 c, 65 c,
+86 c, 65 c, 87 c, 72 c, 129 c, 236 c, 128 c, 0 c, 0 c, 0 c,
+73 c, 137 c, 252 c, 72 c, 137 c, 117 c, 176 c, 72 c, 137 c, 85 c,
+184 c, 72 c, 137 c, 77 c, 192 c, 76 c, 137 c, 69 c, 200 c, 76 c,
+137 c, 77 c, 208 c, 77 c, 49 c, 237 c, 73 c, 15 c, 182 c, 4 c,
+36 c, 132 c, 192 c, 15 c, 132 c, 190 c, 1 c, 0 c, 0 c, 60 c,
+37 c, 117 c, 54 c, 73 c, 255 c, 196 c, 73 c, 15 c, 182 c, 4 c,
+36 c, 132 c, 192 c, 15 c, 132 c, 170 c, 1 c, 0 c, 0 c, 60 c,
+37 c, 116 c, 34 c, 60 c, 99 c, 116 c, 72 c, 60 c, 115 c, 116 c,
+121 c, 60 c, 100 c, 15 c, 132 c, 192 c, 0 c, 0 c, 0 c, 60 c,
+105 c, 15 c, 132 c, 184 c, 0 c, 0 c, 0 c, 60 c, 120 c, 15 c,
+132 c, 39 c, 1 c, 0 c, 0 c, 235 c, 0 c, 72 c, 131 c, 236 c,
+16 c, 136 c, 4 c, 36 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c,
+0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 137 c,
+230 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c,
+72 c, 131 c, 196 c, 16 c, 73 c, 255 c, 196 c, 235 c, 143 c, 74 c,
+139 c, 68 c, 237 c, 176 c, 73 c, 255 c, 197 c, 72 c, 131 c, 236 c,
+16 c, 136 c, 4 c, 36 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c,
+0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 72 c, 137 c,
+230 c, 72 c, 199 c, 194 c, 1 c, 0 c, 0 c, 0 c, 15 c, 5 c,
+72 c, 131 c, 196 c, 16 c, 73 c, 255 c, 196 c, 233 c, 90 c, 255 c,
+255 c, 255 c, 78 c, 139 c, 116 c, 237 c, 176 c, 73 c, 255 c, 197 c,
+77 c, 133 c, 246 c, 117 c, 8 c, 73 c, 255 c, 196 c, 233 c, 69 c,
+255 c, 255 c, 255 c, 73 c, 15 c, 182 c, 6 c, 132 c, 192 c, 116 c,
+42 c, 72 c, 131 c, 236 c, 16 c, 136 c, 4 c, 36 c, 72 c, 199 c,
+192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c, 0 c,
+0 c, 0 c, 72 c, 137 c, 230 c, 72 c, 199 c, 194 c, 1 c, 0 c,
+0 c, 0 c, 15 c, 5 c, 72 c, 131 c, 196 c, 16 c, 73 c, 255 c,
+198 c, 235 c, 206 c, 73 c, 255 c, 196 c, 233 c, 11 c, 255 c, 255 c,
+255 c, 74 c, 139 c, 68 c, 237 c, 176 c, 73 c, 255 c, 197 c, 72 c,
+131 c, 236 c, 32 c, 76 c, 141 c, 116 c, 36 c, 30 c, 65 c, 198 c,
+6 c, 0 c, 72 c, 133 c, 192 c, 121 c, 12 c, 72 c, 247 c, 216 c,
+73 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 235 c, 3 c, 77 c,
+49 c, 255 c, 72 c, 49 c, 210 c, 72 c, 199 c, 195 c, 10 c, 0 c,
+0 c, 0 c, 72 c, 247 c, 243 c, 128 c, 194 c, 48 c, 73 c, 255 c,
+206 c, 65 c, 136 c, 22 c, 72 c, 133 c, 192 c, 117 c, 229 c, 77 c,
+133 c, 255 c, 116 c, 7 c, 73 c, 255 c, 206 c, 65 c, 198 c, 6 c,
+45 c, 72 c, 141 c, 84 c, 36 c, 30 c, 76 c, 41 c, 242 c, 72 c,
+199 c, 192 c, 1 c, 0 c, 0 c, 0 c, 72 c, 199 c, 199 c, 1 c,
+0 c, 0 c, 0 c, 76 c, 137 c, 246 c, 15 c, 5 c, 72 c, 131 c,
+196 c, 32 c, 73 c, 255 c, 196 c, 233 c, 148 c, 254 c, 255 c, 255 c,
+74 c, 139 c, 68 c, 237 c, 176 c, 73 c, 255 c, 197 c, 72 c, 131 c,
+236 c, 32 c, 76 c, 141 c, 116 c, 36 c, 30 c, 65 c, 198 c, 6 c,
+0 c, 72 c, 137 c, 194 c, 72 c, 131 c, 226 c, 15 c, 128 c, 250 c,
+10 c, 124 c, 5 c, 128 c, 194 c, 87 c, 235 c, 3 c, 128 c, 194 c,
+48 c, 73 c, 255 c, 206 c, 65 c, 136 c, 22 c, 72 c, 193 c, 232 c,
+4 c, 72 c, 133 c, 192 c, 117 c, 221 c, 72 c, 141 c, 84 c, 36 c,
+30 c, 76 c, 41 c, 242 c, 72 c, 199 c, 192 c, 1 c, 0 c, 0 c,
+0 c, 72 c, 199 c, 199 c, 1 c, 0 c, 0 c, 0 c, 76 c, 137 c,
+246 c, 15 c, 5 c, 72 c, 131 c, 196 c, 32 c, 73 c, 255 c, 196 c,
+233 c, 53 c, 254 c, 255 c, 255 c, 72 c, 49 c, 192 c, 72 c, 129 c,
+196 c, 128 c, 0 c, 0 c, 0 c, 65 c, 95 c, 65 c, 94 c, 65 c,
+93 c, 65 c, 92 c, 91 c, 72 c, 137 c, 236 c, 93 c, 195 c,
+
+variable c-malloc-xt
+variable c-free-xt
+
+HERE 16 + c-malloc-xt !
+0 c, 0 c, 0 c, 80 c, 0 c, 0 c, 0 c, 0 c, 0 c, 0 c,
+0 c, 80 c, 0 c, 0 c, 0 c, 0 c, 83 c, 65 c, 84 c, 65 c,
+85 c, 72 c, 133 c, 255 c, 116 c, 108 c, 72 c, 131 c, 199 c, 15 c,
+72 c, 131 c, 231 c, 240 c, 73 c, 137 c, 252 c, 73 c, 131 c, 196 c,
+16 c, 72 c, 139 c, 29 c, 208 c, 255 c, 255 c, 255 c, 76 c, 139 c,
+45 c, 209 c, 255 c, 255 c, 255 c, 76 c, 57 c, 235 c, 115 c, 40 c,
+72 c, 139 c, 3 c, 72 c, 139 c, 75 c, 8 c, 72 c, 133 c, 201 c,
+116 c, 23 c, 76 c, 57 c, 224 c, 114 c, 18 c, 72 c, 199 c, 67 c,
+8 c, 0 c, 0 c, 0 c, 0 c, 72 c, 141 c, 67 c, 16 c, 65 c,
+93 c, 65 c, 92 c, 91 c, 195 c, 72 c, 1 c, 195 c, 235 c, 211 c,
+76 c, 137 c, 235 c, 77 c, 1 c, 229 c, 76 c, 137 c, 45 c, 151 c,
+255 c, 255 c, 255 c, 76 c, 137 c, 35 c, 72 c, 199 c, 67 c, 8 c,
+0 c, 0 c, 0 c, 0 c, 72 c, 141 c, 67 c, 16 c, 65 c, 93 c,
+65 c, 92 c, 91 c, 195 c, 49 c, 192 c, 65 c, 93 c, 65 c, 92 c,
+91 c, 195 c,
+
+HERE c-free-xt !
+72 c, 133 c, 255 c, 116 c, 75 c, 72 c, 199 c, 71 c, 248 c, 1 c,
+0 c, 0 c, 0 c, 83 c, 72 c, 139 c, 29 c, 93 c, 255 c, 255 c,
+255 c, 72 c, 139 c, 21 c, 94 c, 255 c, 255 c, 255 c, 72 c, 57 c,
+211 c, 115 c, 46 c, 72 c, 139 c, 3 c, 72 c, 139 c, 75 c, 8 c,
+72 c, 133 c, 201 c, 116 c, 29 c, 72 c, 141 c, 52 c, 3 c, 72 c,
+57 c, 214 c, 115 c, 25 c, 76 c, 139 c, 6 c, 76 c, 139 c, 78 c,
+8 c, 77 c, 133 c, 201 c, 116 c, 8 c, 76 c, 1 c, 192 c, 72 c,
+137 c, 3 c, 235 c, 210 c, 72 c, 1 c, 195 c, 235 c, 205 c, 91 c,
+195 c,
+
+variable c-poke-xt
+HERE c-poke-xt !
+72 c, 137 c, 55 c, 195 c,
+
+variable c-peek-xt
+HERE c-peek-xt !
+72 c, 139 c, 7 c, 195 c,
+
+variable c-pokeb-xt
+HERE c-pokeb-xt !
+64 c, 136 c, 55 c, 195 c,
+
+variable c-peekb-xt
+HERE c-peekb-xt !
+72 c, 15 c, 182 c, 7 c, 195 c,
 
 : c-peek-ch
     c-src-ptr @ c-src-end @ < if
@@ -136,13 +265,13 @@ variable str-match
     then
     ;
 
-create kw-int-str 105 c, 110 c, 116 c,
-create kw-char-str 99 c, 104 c, 97 c, 114 c,
-create kw-void-str 118 c, 111 c, 105 c, 100 c,
-create kw-if-str 105 c, 102 c,
-create kw-else-str 101 c, 108 c, 115 c, 101 c,
-create kw-while-str 119 c, 104 c, 105 c, 108 c, 101 c,
-create kw-return-str 114 c, 101 c, 116 c, 117 c, 114 c, 110 c,
+create kw-int-str 105 c, 110 c, 116 c, align8
+create kw-char-str 99 c, 104 c, 97 c, 114 c, align8
+create kw-void-str 118 c, 111 c, 105 c, 100 c, align8
+create kw-if-str 105 c, 102 c, align8
+create kw-else-str 101 c, 108 c, 115 c, 101 c, align8
+create kw-while-str 119 c, 104 c, 105 c, 108 c, 101 c, align8
+create kw-return-str 114 c, 101 c, 116 c, 117 c, 114 c, 110 c, align8
 
 : check-keyword
     c-tok-str c-tok-len @ kw-int-str 3 str-eq if
@@ -321,11 +450,17 @@ variable rb-name
     c-num-funcs @ 1+ c-num-funcs !
     ;
 
-create name-putchar 112 c, 117 c, 116 c, 99 c, 104 c, 97 c, 114 c,
-create name-getchar 103 c, 101 c, 116 c, 99 c, 104 c, 97 c, 114 c,
-create name-puts 112 c, 117 c, 116 c, 115 c,
-create name-gets 103 c, 101 c, 116 c, 115 c,
-create name-printf 112 c, 114 c, 105 c, 110 c, 116 c, 102 c,
+create name-putchar 112 c, 117 c, 116 c, 99 c, 104 c, 97 c, 114 c, align8
+create name-getchar 103 c, 101 c, 116 c, 99 c, 104 c, 97 c, 114 c, align8
+create name-puts 112 c, 117 c, 116 c, 115 c, align8
+create name-gets 103 c, 101 c, 116 c, 115 c, align8
+create name-printf 112 c, 114 c, 105 c, 110 c, 116 c, 102 c, align8
+create name-malloc 109 c, 97 c, 108 c, 108 c, 111 c, 99 c, align8
+create name-free 102 c, 114 c, 101 c, 101 c, align8
+create name-poke 112 c, 111 c, 107 c, 101 c, align8
+create name-peek 112 c, 101 c, 101 c, 107 c, align8
+create name-pokeb 112 c, 111 c, 107 c, 101 c, 98 c, align8
+create name-peekb 112 c, 101 c, 101 c, 107 c, 98 c, align8
 
 : init-builtins
     0 c-num-funcs !
@@ -334,6 +469,12 @@ create name-printf 112 c, 114 c, 105 c, 110 c, 116 c, 102 c,
     name-puts 4 c-puts-xt @ 1 register-builtin
     name-gets 4 c-gets-xt @ 1 register-builtin
     name-printf 6 c-printf-xt @ 1 register-builtin
+    name-malloc 6 c-malloc-xt @ 1 register-builtin
+    name-free 4 c-free-xt @ 1 register-builtin
+    name-poke 4 c-poke-xt @ 2 register-builtin
+    name-peek 4 c-peek-xt @ 1 register-builtin
+    name-pokeb 5 c-pokeb-xt @ 2 register-builtin
+    name-peekb 5 c-peekb-xt @ 1 register-builtin
     ;
 
 : parse-primary
@@ -343,6 +484,10 @@ create name-printf 112 c, 114 c, 105 c, 110 c, 116 c, 102 c,
     else c-tok-type @ 3 = if
         72 c, 184 c, c-tok-val @ 8comma
         next-tok
+    else c-tok-type @ 42 = if
+        next-tok
+        parse-primary
+        72 c, 139 c, 0 c,
     else c-tok-type @ 2 = if
         find-function
         dup 0 > if
@@ -406,7 +551,7 @@ create name-printf 112 c, 114 c, 105 c, 110 c, 116 c, 102 c,
         next-tok
         parse-expr-xt @ EXECUTE
         next-tok
-    then then then then
+    then then then then then
     ;
 
 : parse-multiplicative
@@ -520,7 +665,29 @@ variable assign-done
 variable assign-off
 : parse-expr
     0 assign-done !
-    c-tok-type @ 2 = if
+    c-tok-type @ 42 = if
+        c-skip-ws
+        c-peek-ch is-alpha if
+            next-tok
+            c-tok-str c-var-name-buf c-tok-len @ cmove
+            c-tok-len @ c-var-name-len !
+            find-local-var
+            dup 0 > if
+                assign-off !
+                c-skip-ws
+                c-peek-ch 61 = if
+                    c-get-ch drop
+                    next-tok
+                    parse-equality
+                    72 c, 139 c, 141 c, 0 assign-off @ - 4comma
+                    72 c, 137 c, 1 c,
+                    1 assign-done !
+                then
+            else
+                drop
+            then
+        then
+    else c-tok-type @ 2 = if
         c-tok-str c-var-name-buf c-tok-len @ cmove
         c-tok-len @ c-var-name-len !
         find-local-var
@@ -537,7 +704,7 @@ variable assign-off
         else
             drop
         then
-    then
+    then then
     assign-done @ 0= if
         parse-equality
     then

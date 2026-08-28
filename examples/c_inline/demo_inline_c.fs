@@ -1,9 +1,9 @@
-s" addons/inline_c.fs" include
+include addons/inline_c.fs
 
 cr
 ." ========================================================" cr
 ."   VagaForth Inline C Compiler Addon Demo" cr
-."   (With printf, puts, string literals & full stdio)" cr
+."   (With printf, puts, malloc, free & full stdio)" cr
 ." ========================================================" cr
 cr
 
@@ -42,6 +42,28 @@ cr
 ." [5] Testing C stdio runtime (printf & puts with string literals)..." cr
 s" void test_io() { puts('  [puts] Hello from C runtime!'); printf('  [printf] Number: %d, Hex: 0x%x, Math: %d * %d = %d\n', 42, 255, 6, 7, 6 * 7); }" c-compile
 test_io
+cr
+
+." [6] Testing dynamic heap memory allocation (malloc & free)..." cr
+s" void test_mem() { int p1 = malloc(64); int p2 = malloc(128); printf('  [malloc] Allocated 64 bytes at: 0x%x\n', p1); printf('  [malloc] Allocated 128 bytes at: 0x%x\n', p2); free(p1); puts('  [free] Freed p1 (64 bytes)'); int p3 = malloc(64); printf('  [malloc] Reallocated 64 bytes (reused chunk): 0x%x\n', p3); free(p2); free(p3); puts('  [free] All dynamic heap blocks freed successfully!'); }" c-compile
+test_mem
+cr
+
+." [7] Testing pointer dereferencing (*p = val, *p, peek, poke) & Forth sharing..." cr
+s" int test_ptr_math() { int p = malloc(32); *p = 100; int a = *p; poke(p, 250); int b = peek(p); free(p); return a + b; }" c-compile
+."     test_ptr_math (100 + 250) = " test_ptr_math . cr
+
+s" int create_c_buffer(int size) { return malloc(size); }" c-compile
+s" void verify_c_buffer(int ptr) { printf('  [C verify] Pointer 0x%x holds value: %d\n', ptr, *ptr); free(ptr); }" c-compile
+
+."   -> Forth allocates buffer in C: "
+64 create_c_buffer constant forth-heap-ptr
+." ptr = " forth-heap-ptr . cr
+."   -> Forth writes 77777 to ptr with '!':" cr
+77777 forth-heap-ptr !
+."   -> Forth verifies with '@': " forth-heap-ptr @ . cr
+."   -> C verifies and frees the exact same buffer:" cr
+forth-heap-ptr verify_c_buffer
 cr
 
 ." Inline C compilation & execution completed successfully!" cr
