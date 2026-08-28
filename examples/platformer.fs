@@ -28,6 +28,8 @@ variable enemy-dir
 variable tick-count
 variable action-msg
 variable orig-flags
+variable grav-tick
+variable jump-apex
 
 : esc 27 EMIT ;
 : c-reset esc ." [0m" ;
@@ -175,34 +177,39 @@ variable cell-ch
         else 1 then
     until
 
-    61 6 8 set-cell  61 7 8 set-cell  61 8 8 set-cell  61 9 8 set-cell  61 10 8 set-cell
-    61 15 6 set-cell 61 16 6 set-cell 61 17 6 set-cell 61 18 6 set-cell
-    61 24 7 set-cell 61 25 7 set-cell 61 26 7 set-cell 61 27 7 set-cell
-    61 28 4 set-cell 61 29 4 set-cell 61 30 4 set-cell 61 31 4 set-cell 61 32 4 set-cell
-    35 3 4 set-cell  35 4 4 set-cell  35 5 4 set-cell
+    61 5 9 set-cell  61 6 9 set-cell  61 7 9 set-cell  61 8 9 set-cell
+    61 11 8 set-cell 61 12 8 set-cell 61 13 8 set-cell
+    61 16 7 set-cell 61 17 7 set-cell 61 18 7 set-cell
+    61 21 8 set-cell 61 22 8 set-cell 61 23 8 set-cell
+    61 26 6 set-cell 61 27 6 set-cell 61 28 6 set-cell 61 29 6 set-cell 61 30 6 set-cell
+    61 22 4 set-cell 61 23 4 set-cell 61 24 4 set-cell
+    61 14 4 set-cell 61 15 4 set-cell 61 16 4 set-cell
+    61 7 4 set-cell  61 8 4 set-cell  61 9 4 set-cell  61 10 4 set-cell
+    35 3 4 set-cell  35 4 4 set-cell  35 5 4 set-cell  35 6 4 set-cell
 
-    94 13 10 set-cell 94 14 10 set-cell 94 15 10 set-cell
-    94 16 10 set-cell 94 17 10 set-cell 94 18 10 set-cell
-    94 19 10 set-cell 94 20 10 set-cell
+    94 14 10 set-cell 94 15 10 set-cell 94 16 10 set-cell
+    94 17 10 set-cell 94 18 10 set-cell 94 19 10 set-cell
 
-    42 8 7 set-cell
-    42 16 5 set-cell
-    42 25 6 set-cell
-    42 29 3 set-cell
-    42 31 3 set-cell
+    42 7 8 set-cell
+    42 12 7 set-cell
+    42 17 6 set-cell
+    42 28 5 set-cell
+    42 15 3 set-cell
 
     69 4 3 set-cell
 
     3 px !
     10 py !
-    3 hp !
+    5 hp !
     0 coins !
     5 total-coins !
     0 game-won !
     0 game-quit !
     0 jump-timer !
-    24 enemy-x !
-    6 enemy-y !
+    0 jump-apex !
+    0 grav-tick !
+    27 enemy-x !
+    5 enemy-y !
     1 enemy-dir !
     0 tick-count !
     0 action-msg !
@@ -217,13 +224,13 @@ variable cell-ch
 
     px @ py @ is-spike if
         hp @ 1- hp !
-        3 px ! 10 py ! 0 jump-timer !
+        3 px ! 10 py ! 0 jump-timer ! 0 jump-apex ! 0 grav-tick !
         2 action-msg !
     then
 
     px @ enemy-x @ = py @ enemy-y @ = and if
         hp @ 1- hp !
-        3 px ! 10 py ! 0 jump-timer !
+        3 px ! 10 py ! 0 jump-timer ! 0 jump-apex ! 0 grav-tick !
         4 action-msg !
     then
 
@@ -238,6 +245,7 @@ variable cell-ch
 
 : update-physics
     jump-timer @ 0 > if
+        \ Rising phase
         py @ 1- 0 > if
             px @ py @ 1- is-solid 0= if
                 py @ 1- py !
@@ -248,10 +256,25 @@ variable cell-ch
             0 jump-timer !
         then
         jump-timer @ 1- jump-timer !
+        jump-timer @ 0= if
+            4 jump-apex ! \ Hover at apex for 4 frames (200ms)
+        then
+        0 grav-tick !
     else
-        py @ 10 < if
-            px @ py @ 1+ is-solid 0= if
-                py @ 1+ py !
+        jump-apex @ 0 > if
+            \ Apex hover phase (floating at top of jump)
+            jump-apex @ 1- jump-apex !
+            0 grav-tick !
+        else
+            \ Falling phase: gentle descent (150ms per tile down)
+            grav-tick @ 1+ grav-tick !
+            grav-tick @ 2 > if
+                0 grav-tick !
+                py @ 10 < if
+                    px @ py @ 1+ is-solid 0= if
+                        py @ 1+ py !
+                    then
+                then
             then
         then
     then
@@ -261,16 +284,16 @@ variable cell-ch
 variable enemy-tick
 : update-enemy
     enemy-tick @ 1+ enemy-tick !
-    enemy-tick @ 3 > if
+    enemy-tick @ 5 > if
         0 enemy-tick !
         enemy-dir @ 1 = if
-            enemy-x @ 1+ 28 < if
+            enemy-x @ 1+ 30 < if
                 enemy-x @ 1+ enemy-x !
             else
                 0 enemy-dir !
             then
         else
-            enemy-x @ 1- 23 > if
+            enemy-x @ 1- 26 > if
                 enemy-x @ 1- enemy-x !
             else
                 1 enemy-dir !
@@ -285,6 +308,7 @@ variable cur-key
     dup 96 > over 123 < and if 32 - then
     cur-key !
 
+    \ [A] Left
     cur-key @ 65 = if
         px @ 1- 0 > if
             px @ 1- py @ is-solid 0= if
@@ -293,6 +317,7 @@ variable cur-key
         then
     then
 
+    \ [D] Right
     cur-key @ 68 = if
         px @ 1+ 39 < if
             px @ 1+ py @ is-solid 0= if
@@ -301,10 +326,13 @@ variable cur-key
         then
     then
 
+    \ [W] or [Space]: Jump
     cur-key @ 87 = cur-key @ 32 = + if
         py @ 1+ 12 < if
             px @ py @ 1+ is-solid if
-                4 jump-timer !
+                5 jump-timer !
+                0 jump-apex !
+                0 grav-tick !
             then
         then
     then
@@ -319,10 +347,12 @@ variable cur-key
     ." +------------------------------------------------------+" cr
     c-reset
     ."  HP: "
-    hp @ 3 = if c-red ." [♥ ♥ ♥] " c-reset then
-    hp @ 2 = if c-red ." [♥ ♥ ♡] " c-reset then
-    hp @ 1 = if c-red ." [♥ ♡ ♡] " c-reset then
-    hp @ 0 = if c-gray ." [☠ ☠ ☠] " c-reset then
+    hp @ 5 = if c-red ." [♥ ♥ ♥ ♥ ♥] " c-reset then
+    hp @ 4 = if c-red ." [♥ ♥ ♥ ♥ ♡] " c-reset then
+    hp @ 3 = if c-red ." [♥ ♥ ♥ ♡ ♡] " c-reset then
+    hp @ 2 = if c-red ." [♥ ♥ ♡ ♡ ♡] " c-reset then
+    hp @ 1 = if c-red ." [♥ ♡ ♡ ♡ ♡] " c-reset then
+    hp @ 0 = if c-gray ." [☠ ☠ ☠ ☠ ☠] " c-reset then
 
     ." | COINS: " c-yellow coins @ . ." / " total-coins @ . c-reset
     ." | EXIT: "
@@ -407,5 +437,6 @@ variable raw-k
     cr
     ;
 
-create entry-nm 112 c, 108 c, 97 c, 121 c, 45 c, 112 c, 108 c, 97 c, 116 c, 102 c, 111 c, 114 c, 109 c, 101 c, 114 c, 0 c,
+create entry-nm 16 allot
+s" play-platformer" entry-nm swap cmove
 entry-nm 15 s" platformer.bin" save-elf-at
