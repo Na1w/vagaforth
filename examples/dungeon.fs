@@ -467,5 +467,6 @@ variable first-char
     then
     ;
 
-create entry-nm 112 c, 108 c, 97 c, 121 c, 45 c, 103 c, 97 c, 109 c, 101 c,
+create entry-nm 16 allot
+s" play-game" entry-nm swap cmove
 entry-nm 9 s" dungeon.bin" save-elf-at

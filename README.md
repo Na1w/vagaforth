@@ -117,10 +117,10 @@ Because the second-generation binary is produced *by* the first-generation binar
 `selfhost.sh` orchestrates the full proof:
 
 ```
-Stage 1: make                          → build host C interpreter (vagaforth)
-Stage 2: ./vagaforth kernel/kernel.fs  → cross-compile target kernel (vagaforth.bin)
-Stage 3: ./vagaforth.bin < selfhost.fs → self-compile (vagaforth_new.bin)
-Stage 4: verify vagaforth_new.bin      → valid ELF64 x86-64 AND runs
+Stage 1: make                                 → build host C interpreter (vagaforth)
+Stage 2: ./vagaforth kernel/kernel.fs         → cross-compile target kernel (vagaforth.bin)
+Stage 3: ./vagaforth.bin < kernel/selfhost.fs → self-compile (vagaforth_new.bin)
+Stage 4: verify vagaforth_new.bin             → valid ELF64 x86-64 AND runs
 ```
 
 ---
@@ -154,14 +154,20 @@ This produces the `vagaforth` host binary.
 
 ### Interactive REPL
 
+Run the C host interpreter REPL:
 ```bash
 ./vagaforth
+```
+
+Or run the native self-hosted x86-64 Forth REPL:
+```bash
+./vagaforth_new.bin
 ```
 
 ### Run a Forth source file
 
 ```bash
-cat examples/test.fs - | ./vagaforth.bin
+cat examples/test.fs - | ./vagaforth_new.bin
 ```
 
 The trailing `-` switches the interpreter into interactive REPL mode after the file is loaded.
@@ -183,7 +189,7 @@ VagaForth includes a built-in **Inline C Compiler** addon that parses C function
 ### Quick Example
 
 ```forth
-s" addons/inline_c.fs" include
+include addons/inline_c.fs
 
 \ 1. Arithmetic & recursion in C:
 s" int add(int a, int b) { return a + b; }" c-compile
@@ -210,13 +216,27 @@ make demo-c
 
 ---
 
-## Emitting Standalone ELF Executables (`save-elf` & `save-elf-at`)
+## 100% Native Compilation & Standalone ELF Executables
 
-VagaForth includes built-in words to serialize the live dictionary and memory state into a standalone Linux x86-64 executable binary (ELF64 format) with **zero external dependencies** (no libc or dynamic linker required).
+VagaForth is a **true native compiler** for x86-64 Linux. It does **not** rely on bytecode interpreters, virtual machines, or C runtime libraries (`libc`).
+
+### Architecture: How 100% Native Code Works
+
+1. **Direct Machine Code Emission:**
+   - When a Forth word is defined with `:` (colon), machine code (`CALL`, `RET`, stack manipulations) is assembled directly into executable memory.
+   - Inline C functions compiled via `c-compile` are translated on the fly to native x86-64 instructions.
+   - All I/O operations (`EMIT`, `KEY`, `type`, `included`) perform Linux kernel system calls directly via the `syscall` instruction (`0f 05`).
+
+2. **Standalone Binary Serialization (`save-elf-at`):**
+   - When `save-elf-at` is called, VagaForth constructs an ELF64 header and program header pointing directly to a native startup trampoline.
+   - The startup trampoline initializes the hardware return stack (`RSP`), sets up the Forth data stack pointer (`RDI`), and calls the application entry point via an absolute machine call (`call rbx`).
+   - When the entry word finishes and returns, the trampoline invokes Linux `sys_exit` (`syscall 60`), cleanly terminating the process without requiring any external runtime.
+
+---
 
 ### 1. `save-elf-at` (Custom Application Entry Point)
 
-`save-elf-at` creates a standalone executable whose entry point immediately executes a specified Forth word when launched:
+`save-elf-at` creates a standalone Linux x86-64 ELF executable whose entry point immediately executes a specified Forth word when launched:
 
 **Stack effect:** `( entry-addr entry-len filename-addr filename-len -- )`
 
@@ -231,17 +251,18 @@ VagaForth includes built-in words to serialize the live dictionary and memory st
     ;
 
 \ Save as a standalone executable 'hello.bin':
-create entry-nm 109 c, 97 c, 105 c, 110 c,   \ "main"
+create entry-nm 16 allot
+s" main" entry-nm swap cmove
 entry-nm 4 s" hello.bin" save-elf-at
 ```
 
-> **Note on `s"` buffers:** Because Forth's `s"` word uses a single shared temporary buffer (`S-BUF-ADDR`), define the entry word name in a separate buffer (e.g. via `create entry-nm ...` or an allocated buffer) before passing the output filename `s" ..."` to `save-elf-at`.
+> **Note on `s"` buffers:** Because Forth's `s"` word uses a single shared temporary buffer (`S-BUF-ADDR`), copy the entry word name into a dedicated buffer (e.g. `s" main" entry-nm swap cmove`) before passing the output filename `s" ..."` to `save-elf-at`.
 
 #### Building & Running from Bash:
 
 ```bash
-# Feed the Forth script to vagaforth.bin:
-./vagaforth.bin < my_app.fs
+# Feed the Forth script to the self-hosted compiler:
+./vagaforth_new.bin < my_app.fs
 
 # Run the generated binary directly:
 chmod +x hello.bin
@@ -252,27 +273,50 @@ chmod +x hello.bin
 
 ### 2. Standalone Binaries with Inline C
 
-You can also combine Forth definitions and Inline C functions into a standalone ELF binary:
+You can seamlessly combine Forth definitions and Inline C functions into a standalone ELF binary:
 
 ```forth
-s" addons/inline_c.fs" include
+include addons/inline_c.fs
 
-\ Compile C logic:
+\ Compile C logic into native machine code:
 s" int fib(int n) { if (n <= 1) return n; return fib(n-1) + fib(n-2); } void c_greet() { printf('Hello from C!\nFibonacci(10) = %d\n', fib(10)); }" c-compile
 
-\ Forth main word calling C and Forth logic:
+\ Forth main word calling both C and Forth words:
 : main
     c_greet
     ." Forth computation: 100 * 25 = " 100 25 * . cr
     ;
 
-create entry-nm 109 c, 97 c, 105 c, 110 c,   \ "main"
+create entry-nm 16 allot
+s" main" entry-nm swap cmove
 entry-nm 4 s" c_app.bin" save-elf-at
 ```
 
 ---
 
-### 3. `save-elf` (Interactive REPL Snapshot)
+### 3. Verifying the Native Binary
+
+Because generated binaries are 100% static native x86-64 machine code, you can inspect them with standard Linux binary analysis tools:
+
+- **Check static linkage (no libc / ld.so dependencies):**
+  ```bash
+  ldd hello.bin
+  # Output: not a dynamic executable
+  ```
+
+- **Inspect disassembled machine code:**
+  ```bash
+  objdump -d hello.bin | head -n 30
+  ```
+
+- **Trace direct kernel system calls:**
+  ```bash
+  strace ./hello.bin
+  ```
+
+---
+
+### 4. `save-elf` (Interactive REPL Snapshot)
 
 `save-elf` saves the entire Forth dictionary and memory state, setting the entry point to the standard interactive Forth REPL (`START`).
 
@@ -293,13 +337,17 @@ When `./my_custom_forth.bin` is executed, it boots directly into the interactive
 
 ## Testing
 
-The `kernel/` directory contains focused unit tests for individual words and subsystems (e.g. `test_plus.fs`, `test_emit.fs`, `test_resolve32.fs`, `test_start.fs`). These are loaded into the interpreter to verify behavior:
+Run the full automated test suite (unit tests, regression battery, differential testing, PTY interactive test, and inline C demo):
 
 ```bash
-cat kernel/test_plus.fs - | ./vagaforth.bin
+make test
 ```
 
-The `tests/` directory holds additional integration test suites.
+Individual unit test files in `tests/` can also be loaded into the interpreter:
+
+```bash
+cat tests/test_dot.fs - | ./vagaforth_new.bin
+```
 
 ---
 

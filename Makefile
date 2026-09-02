@@ -31,30 +31,30 @@ $(TARGET_BIN): $(HOST_BIN) $(KERNEL_SRCS)
 $(SELFHOST_BIN): $(TARGET_BIN) kernel/selfhost.fs
 	./$(TARGET_BIN) < kernel/selfhost.fs
 
-$(GAME_BIN): $(TARGET_BIN) examples/guess_game.fs
-	./$(TARGET_BIN) < examples/guess_game.fs
+$(GAME_BIN): $(SELFHOST_BIN) examples/guess_game.fs
+	./$(SELFHOST_BIN) < examples/guess_game.fs
 
-$(DUNGEON_BIN): $(TARGET_BIN) examples/dungeon.fs
-	./$(TARGET_BIN) < examples/dungeon.fs
+$(DUNGEON_BIN): $(SELFHOST_BIN) examples/dungeon.fs
+	./$(SELFHOST_BIN) < examples/dungeon.fs
 
-$(BF_BIN): $(TARGET_BIN) examples/bf/bf_compiler.fs
-	./$(TARGET_BIN) < examples/bf/bf_compiler.fs
+$(BF_BIN): $(SELFHOST_BIN) examples/bf/bf_compiler.fs
+	./$(SELFHOST_BIN) < examples/bf/bf_compiler.fs
 
-$(BF_HELLO_BIN): $(TARGET_BIN) examples/bf/compile_hello_bf.fs
-	./$(TARGET_BIN) < examples/bf/compile_hello_bf.fs
+$(BF_HELLO_BIN): $(SELFHOST_BIN) examples/bf/compile_hello_bf.fs
+	./$(SELFHOST_BIN) < examples/bf/compile_hello_bf.fs
 
-$(PLATFORMER_BIN): $(TARGET_BIN) examples/platformer.fs
-	./$(TARGET_BIN) < examples/platformer.fs
+$(PLATFORMER_BIN): $(SELFHOST_BIN) examples/platformer.fs
+	./$(SELFHOST_BIN) < examples/platformer.fs
 
 test: all
 	./tests/run_all.sh
 	./tests/diff_test.sh
 	./tests/diff_dot_dotquote.sh
 	python3 tests/pty_interactive_test.py
-	./$(TARGET_BIN) < examples/c_inline/demo_inline_c.fs
+	./$(SELFHOST_BIN) < examples/c_inline/demo_inline_c.fs
 
-demo-c: $(TARGET_BIN)
-	./$(TARGET_BIN) < examples/c_inline/demo_inline_c.fs
+demo-c: $(SELFHOST_BIN)
+	./$(SELFHOST_BIN) < examples/c_inline/demo_inline_c.fs
 
 clean:
 	rm -f $(OBJ) $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN) $(BF_BIN) $(BF_HELLO_BIN) $(PLATFORMER_BIN) hello.bin tests/stage_*.txt src/*.o

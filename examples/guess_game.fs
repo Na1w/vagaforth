@@ -157,5 +157,6 @@ variable choice-ch
     until
     ;
 
-create entry-name 103 c, 97 c, 109 c, 101 c,
+create entry-name 16 allot
+s" game" entry-name swap cmove
 entry-name 4 s" guess_game.bin" save-elf-at

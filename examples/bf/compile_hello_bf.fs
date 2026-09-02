@@ -140,5 +140,6 @@ build-bf
     bf-code EXECUTE
     ;
 
-create entry-nm 109 c, 97 c, 105 c, 110 c, 45 c, 98 c, 102 c, 0 c,
+create entry-nm 16 allot
+s" main-bf" entry-nm swap cmove
 entry-nm 7 s" hello_bf.bin" save-elf-at

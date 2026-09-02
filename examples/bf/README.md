@@ -40,10 +40,34 @@ At runtime, `bf_compiler.bin` parses Brainfuck source code, translates each inst
    ```
 
 3. **Menu Options:**
-   - `1`: Run built-in **"Hello, World!"**
-   - `2`: Run built-in **"A-Z Alphabet Generator"**
+   - `1`: Run built-in **"Hello, World!"** via native JIT.
+   - `2`: Run built-in **"A-Z Alphabet Generator"** via native JIT.
    - `3`: Input and execute your own custom Brainfuck code in real-time (end input with `!`).
+   - `4`: **Compile custom Brainfuck and save as a standalone native Linux ELF binary** (e.g. `my_app.bin`).
    - `Q`: Quit
+
+---
+
+## Compiling Brainfuck directly into Standalone Linux Binaries
+
+You can produce standalone, zero-dependency native ELF binaries from Brainfuck in two ways:
+
+### 1. Interactively via `bf_compiler.bin`
+Run `./bf_compiler.bin` and select option `4`. Paste your Brainfuck code (terminated with `!`) and specify an output filename (e.g. `rot13.bin`). The compiler translates the Brainfuck code to x86-64 machine instructions and serializes a native executable using `save-elf-at`.
+
+You can then run the resulting executable directly from your shell:
+```bash
+chmod +x rot13.bin
+./rot13.bin
+```
+
+### 2. Ahead-of-Time Script (`compile_hello_bf.fs`)
+`examples/bf/compile_hello_bf.fs` demonstrates how a Forth script reads Brainfuck code at compile-time, translates it into machine code, and uses `save-elf-at` to emit `hello_bf.bin` during the `make` build process:
+
+```bash
+./vagaforth_new.bin < examples/bf/compile_hello_bf.fs
+./hello_bf.bin
+```
 
 ---
 

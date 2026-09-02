@@ -179,6 +179,18 @@ create alpha-bf-str 200 allot
     ;
 
 variable custom-len
+create out-fn-buf 64 allot
+variable out-fn-len
+create default-bf-out-fn 16 allot
+create bf-save-entry-nm 16 allot
+
+s" bf_app.bin" default-bf-out-fn swap cmove
+s" bf-exec-entry" bf-save-entry-nm swap cmove
+
+: bf-exec-entry
+    bf-code EXECUTE
+    ;
+
 : read-custom-bf
     0 custom-len !
     cr
@@ -205,6 +217,65 @@ variable custom-len
     then
     ;
 
+: read-filename
+    0 out-fn-len !
+    cr
+    c-yellow ." Enter output binary name (default: bf_app.bin): " c-reset
+    begin
+        KEY in-ch !
+        in-ch @ 10 = in-ch @ 13 = + in-ch @ 32 = + 0= if
+            in-ch @ out-fn-buf c!
+            1 out-fn-len !
+            1
+        else
+            0
+        then
+    until
+    begin
+        KEY in-ch !
+        in-ch @ 10 = in-ch @ 13 = + if
+            1
+        else
+            in-ch @ 32 > if
+                in-ch @ out-fn-buf out-fn-len @ + c!
+                out-fn-len @ 1+ out-fn-len !
+            then
+            0
+        then
+    until
+    out-fn-len @ 0= if
+        default-bf-out-fn out-fn-buf 10 cmove
+        10 out-fn-len !
+    then
+    ;
+
+: save-custom-bf
+    0 custom-len !
+    cr
+    c-yellow ." Enter Brainfuck code to compile & save (end with !): " c-reset
+    begin
+        KEY in-ch !
+        in-ch @ 33 = if
+            1
+        else
+            in-ch @ bf-src custom-len @ + c!
+            custom-len @ 1+ custom-len !
+            0
+        then
+    until
+    custom-len @ bf-src-len !
+    custom-len @ 0 > if
+        compile-bf
+        read-filename
+        bf-save-entry-nm 13 out-fn-buf out-fn-len @ save-elf-at
+        cr
+        c-green ." [OK] Standalone native ELF binary created: " out-fn-buf out-fn-len @ type cr c-reset
+        c-cyan ." You can now run it directly in your shell: ./" out-fn-buf out-fn-len @ type cr c-reset
+    else
+        c-gray ." (No code entered, skipping binary generation)" cr c-reset
+    then
+    ;
+
 : print-menu
     cr
     c-cyan
@@ -214,7 +285,8 @@ variable custom-len
     c-reset
     ."  1) Run 'Hello World!' via native JIT" cr
     ."  2) Run 'A-Z Alphabet Generator' via native JIT" cr
-    ."  3) Enter custom Brainfuck code & execute JIT" cr
+    ."  3) Enter custom Brainfuck code & execute in real-time" cr
+    ."  4) Compile custom Brainfuck & emit standalone Linux ELF executable" cr
     ."  Q) Quit" cr
     c-cyan
     ." +----------------------------------------------------------------------+" cr
@@ -231,6 +303,7 @@ variable custom-len
         menu-ch @ 49 = if run-hello then
         menu-ch @ 50 = if run-alpha then
         menu-ch @ 51 = if read-custom-bf then
+        menu-ch @ 52 = if save-custom-bf then
         menu-ch @ 81 = menu-ch @ 113 = + if
             0 menu-loop !
             c-gray ." Exiting Brainfuck Compiler. Goodbye!" cr c-reset
@@ -239,5 +312,6 @@ variable custom-len
     until
     ;
 
-create entry-nm 98 c, 102 c, 45 c, 109 c, 97 c, 105 c, 110 c, 0 c,
+create entry-nm 16 allot
+s" bf-main" entry-nm swap cmove
 entry-nm 7 s" bf_compiler.bin" save-elf-at

@@ -21,13 +21,13 @@ Everything after the `-` is read from your keyboard.
 ### Load `advanced.fs` alone
 
 ```bash
-cat examples/advanced.fs - | ./vagaforth.bin
+cat examples/advanced.fs - | ./vagaforth_new.bin
 ```
 
 ### Load both `test.fs` and `advanced.fs`
 
 ```bash
-cat examples/test.fs examples/advanced.fs - | ./vagaforth.bin
+cat examples/test.fs examples/advanced.fs - | ./vagaforth_new.bin
 ```
 
 Loading `test.fs` first also defines a few helper words (`cr`, `space`,

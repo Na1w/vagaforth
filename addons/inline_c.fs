@@ -663,12 +663,22 @@ create name-peekb 112 c, 101 c, 101 c, 107 c, 98 c, align8
 
 variable assign-done
 variable assign-off
+variable saved-c-src-ptr
+variable saved-c-tok-type
+variable saved-c-tok-val
+variable saved-c-tok-len
+variable saved-c-str-pool-ptr
+
 : parse-expr
     0 assign-done !
     c-tok-type @ 42 = if
-        c-skip-ws
-        c-peek-ch is-alpha if
-            next-tok
+        c-src-ptr @ saved-c-src-ptr !
+        c-tok-type @ saved-c-tok-type !
+        c-tok-val @ saved-c-tok-val !
+        c-tok-len @ saved-c-tok-len !
+        c-str-pool-ptr @ saved-c-str-pool-ptr !
+        next-tok
+        c-tok-type @ 2 = if
             c-tok-str c-var-name-buf c-tok-len @ cmove
             c-tok-len @ c-var-name-len !
             find-local-var
@@ -682,10 +692,27 @@ variable assign-off
                     72 c, 139 c, 141 c, 0 assign-off @ - 4comma
                     72 c, 137 c, 1 c,
                     1 assign-done !
+                else
+                    saved-c-src-ptr @ c-src-ptr !
+                    saved-c-tok-type @ c-tok-type !
+                    saved-c-tok-val @ c-tok-val !
+                    saved-c-tok-len @ c-tok-len !
+                    saved-c-str-pool-ptr @ c-str-pool-ptr !
                 then
             else
                 drop
+                saved-c-src-ptr @ c-src-ptr !
+                saved-c-tok-type @ c-tok-type !
+                saved-c-tok-val @ c-tok-val !
+                saved-c-tok-len @ c-tok-len !
+                saved-c-str-pool-ptr @ c-str-pool-ptr !
             then
+        else
+            saved-c-src-ptr @ c-src-ptr !
+            saved-c-tok-type @ c-tok-type !
+            saved-c-tok-val @ c-tok-val !
+            saved-c-tok-len @ c-tok-len !
+            saved-c-str-pool-ptr @ c-str-pool-ptr !
         then
     else c-tok-type @ 2 = if
         c-tok-str c-var-name-buf c-tok-len @ cmove
