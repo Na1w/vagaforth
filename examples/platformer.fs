@@ -437,6 +437,4 @@ variable raw-k
     cr
     ;
 
-create entry-nm 16 allot
-s" play-platformer" entry-nm swap cmove
-entry-nm 15 s" platformer.bin" save-elf-at
+save-app play-platformer platformer.bin

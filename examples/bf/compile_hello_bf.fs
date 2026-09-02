@@ -1,7 +1,7 @@
-create bf-tape 30000 allot
-create bf-code 65536 allot
-create bf-src 30000 allot
-create bf-loop-stack 800 allot
+30000 buffer: bf-tape
+30000 buffer: bf-src
+800 buffer: bf-loop-stack
+create bf-code 4096 allot
 
 variable bf-dp
 variable bf-src-len
@@ -140,6 +140,4 @@ build-bf
     bf-code EXECUTE
     ;
 
-create entry-nm 16 allot
-s" main-bf" entry-nm swap cmove
-entry-nm 7 s" hello_bf.bin" save-elf-at
+save-app main-bf hello_bf.bin

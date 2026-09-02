@@ -12,11 +12,14 @@ DUNGEON_BIN = dungeon.bin
 BF_BIN = bf_compiler.bin
 BF_HELLO_BIN = hello_bf.bin
 PLATFORMER_BIN = platformer.bin
+C_FORTH_BIN = vagaforth_c.bin
+FFI_LIB = examples/ffi/libdemo.so
+FFI_BIN = ffi_app.bin
 
 CORE_SRCS = $(wildcard core/*.fs)
 KERNEL_SRCS = kernel/kernel.fs $(CORE_SRCS)
 
-all: $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN) $(BF_BIN) $(BF_HELLO_BIN) $(PLATFORMER_BIN)
+all: $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN) $(BF_BIN) $(BF_HELLO_BIN) $(PLATFORMER_BIN) $(C_FORTH_BIN) $(FFI_LIB) $(FFI_BIN)
 
 $(HOST_BIN): $(OBJ)
 	$(CC) $(OBJ) -o $(HOST_BIN) $(LDFLAGS)
@@ -46,17 +49,31 @@ $(BF_HELLO_BIN): $(SELFHOST_BIN) examples/bf/compile_hello_bf.fs
 $(PLATFORMER_BIN): $(SELFHOST_BIN) examples/platformer.fs
 	./$(SELFHOST_BIN) < examples/platformer.fs
 
+$(C_FORTH_BIN): $(SELFHOST_BIN) examples/c_inline/build_c_forth.fs addons/inline_c.fs
+	./$(SELFHOST_BIN) < examples/c_inline/build_c_forth.fs
+
+$(FFI_LIB): examples/ffi/libdemo.c
+	$(CC) -shared -fPIC -fno-builtin -Wl,-Bsymbolic -O2 -o $(FFI_LIB) examples/ffi/libdemo.c
+
+$(FFI_BIN): $(SELFHOST_BIN) $(FFI_LIB) examples/ffi/compile_standalone_ffi.fs addons/dynlink.fs
+	./$(SELFHOST_BIN) < examples/ffi/compile_standalone_ffi.fs
+
 test: all
 	./tests/run_all.sh
 	./tests/diff_test.sh
 	./tests/diff_dot_dotquote.sh
 	python3 tests/pty_interactive_test.py
 	./$(SELFHOST_BIN) < examples/c_inline/demo_inline_c.fs
+	./$(SELFHOST_BIN) < examples/ffi/demo_ffi.fs
+	./$(FFI_BIN)
 
 demo-c: $(SELFHOST_BIN)
 	./$(SELFHOST_BIN) < examples/c_inline/demo_inline_c.fs
 
-clean:
-	rm -f $(OBJ) $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN) $(BF_BIN) $(BF_HELLO_BIN) $(PLATFORMER_BIN) hello.bin tests/stage_*.txt src/*.o
+demo-ffi: $(SELFHOST_BIN) $(FFI_LIB)
+	./$(SELFHOST_BIN) < examples/ffi/demo_ffi.fs
 
-.PHONY: all test clean demo-c
+clean:
+	rm -f $(OBJ) $(HOST_BIN) $(TARGET_BIN) $(SELFHOST_BIN) $(GAME_BIN) $(DUNGEON_BIN) $(BF_BIN) $(BF_HELLO_BIN) $(PLATFORMER_BIN) $(C_FORTH_BIN) $(FFI_BIN) $(FFI_LIB) hello.bin tests/stage_*.txt src/*.o
+
+.PHONY: all test clean demo-c demo-ffi

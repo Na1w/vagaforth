@@ -186,6 +186,7 @@ t-vhere constant T-STATE-VAR   0 8,
 \ the `.` word to match C prim_dot (`%ld` decimal vs `%lx` hex when base==16).
 t-vhere constant T-BASE-VAR    10 8,
 t-vhere constant T-HERE-VAR    T-CODE-START 8,
+t-vhere constant T-BSS-VAR     60000000 8,
 t-vhere constant T-CDEPTH      0 8,
 t-vhere constant SOURCE-PTR    0 8,
 t-vhere constant SOURCE-END    0 8,
@@ -803,6 +804,274 @@ t-code sys-fcntl ( fd cmd arg -- status )
     sub-rdi-8                  \ pop arg
     sub-rdi-8                  \ pop cmd
     mov-tos-rax                \ store status (overwrites fd slot)
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ sys-lseek ( fd offset whence -- result ) : lseek(8) syscall
+hex
+t-code sys-lseek ( fd offset whence -- result )
+    t-vhere constant XT_SYS_LSEEK
+    asm-push-rdi
+    mov-rax-tos                \ RAX = whence
+    mov-rdx-rax                \ RDX = whence
+    mov-rax-nos                \ RAX = offset
+    mov-rsi-rax                \ RSI = offset
+    48 c, 8b c, 47 c, e8 c,    \ MOV RAX, [RDI-24]  (fd)
+    mov-rdi-rax                \ RDI = fd
+    48 c, c7 c, c0 c, 08 c, 00 c, 00 c, 00 c, \ RAX = 8 (SYS_LSEEK)
+    syscall
+    asm-pop-rdi
+    sub-rdi-8 sub-rdi-8        \ pop whence, offset
+    mov-tos-rax                \ TOS = result
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ sys-mmap ( addr len prot flags fd offset -- mapped-addr ) : mmap(9) syscall
+hex
+t-code sys-mmap ( addr len prot flags fd offset -- mapped-addr )
+    t-vhere constant XT_SYS_MMAP
+    asm-push-rdi
+    48 c, 8b c, 4f c, f8 c,    \ mov rcx, [rdi-8]   (offset)
+    49 c, 89 c, c9 c,          \ mov r9, rcx        (arg6 = offset)
+    48 c, 8b c, 47 c, f0 c,    \ mov rax, [rdi-16]  (fd)
+    49 c, 89 c, c0 c,          \ mov r8, rax        (arg5 = fd)
+    48 c, 8b c, 4f c, e8 c,    \ mov rcx, [rdi-24]  (flags)
+    49 c, 89 c, ca c,          \ mov r10, rcx       (arg4 = flags)
+    48 c, 8b c, 57 c, e0 c,    \ mov rdx, [rdi-32]  (arg3 = prot)
+    48 c, 8b c, 77 c, d8 c,    \ mov rsi, [rdi-40]  (arg2 = len)
+    48 c, 8b c, 7f c, d0 c,    \ mov rdi, [rdi-48]  (arg1 = addr)
+    48 c, c7 c, c0 c, 09 c, 00 c, 00 c, 00 c, \ RAX = 9 (SYS_MMAP)
+    syscall
+    asm-pop-rdi
+    sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8 \ pop 5 args
+    mov-tos-rax                \ TOS = mapped-addr
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ sys-munmap ( addr len -- status ) : munmap(11) syscall
+hex
+t-code sys-munmap ( addr len -- status )
+    t-vhere constant XT_SYS_MUNMAP
+    asm-push-rdi
+    mov-rax-tos                \ RAX = len
+    mov-rsi-rax                \ RSI = len
+    mov-rax-nos                \ RAX = addr
+    mov-rdi-rax                \ RDI = addr
+    48 c, c7 c, c0 c, 0b c, 00 c, 00 c, 00 c, \ RAX = 11 (SYS_MUNMAP)
+    syscall
+    asm-pop-rdi
+    sub-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ sys-mprotect ( addr len prot -- status ) : mprotect(10) syscall
+hex
+t-code sys-mprotect ( addr len prot -- status )
+    t-vhere constant XT_SYS_MPROTECT
+    asm-push-rdi
+    mov-rax-tos                \ RAX = prot
+    mov-rdx-rax                \ RDX = prot
+    mov-rax-nos                \ RAX = len
+    mov-rsi-rax                \ RSI = len
+    48 c, 8b c, 47 c, e8 c,    \ mov rax, [rdi-24]  (addr)
+    mov-rdi-rax                \ RDI = addr
+    48 c, c7 c, c0 c, 0a c, 00 c, 00 c, 00 c, \ RAX = 10 (SYS_MPROTECT)
+    syscall
+    asm-pop-rdi
+    sub-rdi-8 sub-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ --- Foreign Function Interface (System V AMD64 ABI call0..call6) ---
+\ call0 ( fn-ptr -- res )
+hex
+t-code call0 ( fn-ptr -- res )
+    t-vhere constant XT_CALL0
+    mov-rax-tos                \ rax = fn-ptr
+    48 c, 89 c, c3 c,          \ mov rbx, rax
+    asm-push-rdi               \ save DSP
+    55 c,                      \ push rbp
+    48 c, 89 c, e5 c,          \ mov rbp, rsp
+    48 c, 83 c, e4 c, f0 c,    \ and rsp, -16 (align)
+    48 c, 31 c, c0 c,          \ xor rax, rax (AL=0)
+    ff c, d3 c,                \ call rbx
+    48 c, 89 c, ec c,          \ mov rsp, rbp
+    5d c,                      \ pop rbp
+    asm-pop-rdi                \ restore DSP
+    mov-tos-rax                \ store res
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ call1 ( a1 fn-ptr -- res )
+hex
+t-code call1 ( a1 fn-ptr -- res )
+    t-vhere constant XT_CALL1
+    mov-rax-tos                \ rax = fn-ptr
+    48 c, 89 c, c3 c,          \ mov rbx, rax
+    mov-rax-nos                \ rax = a1
+    asm-push-rdi               \ save DSP
+    55 c,                      \ push rbp
+    48 c, 89 c, e5 c,          \ mov rbp, rsp
+    48 c, 83 c, e4 c, f0 c,    \ and rsp, -16
+    48 c, 89 c, c7 c,          \ mov rdi, rax (arg1)
+    48 c, 31 c, c0 c,          \ xor rax, rax
+    ff c, d3 c,                \ call rbx
+    48 c, 89 c, ec c,          \ mov rsp, rbp
+    5d c,                      \ pop rbp
+    asm-pop-rdi                \ restore DSP
+    sub-rdi-8                  \ pop a1
+    mov-tos-rax                \ store res
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ call2 ( a1 a2 fn-ptr -- res )
+hex
+t-code call2 ( a1 a2 fn-ptr -- res )
+    t-vhere constant XT_CALL2
+    mov-rax-tos                \ rax = fn-ptr
+    48 c, 89 c, c3 c,          \ mov rbx, rax
+    mov-rax-nos                \ rax = a2
+    48 c, 89 c, c6 c,          \ mov rsi, rax (arg2)
+    48 c, 8b c, 47 c, e8 c,    \ mov rax, [rdi-24] (a1)
+    asm-push-rdi
+    55 c,
+    48 c, 89 c, e5 c,
+    48 c, 83 c, e4 c, f0 c,
+    48 c, 89 c, c7 c,          \ mov rdi, rax (arg1)
+    48 c, 31 c, c0 c,
+    ff c, d3 c,
+    48 c, 89 c, ec c,
+    5d c,
+    asm-pop-rdi
+    sub-rdi-8 sub-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ call3 ( a1 a2 a3 fn-ptr -- res )
+hex
+t-code call3 ( a1 a2 a3 fn-ptr -- res )
+    t-vhere constant XT_CALL3
+    mov-rax-tos                \ rax = fn-ptr
+    48 c, 89 c, c3 c,          \ mov rbx, rax
+    mov-rax-nos                \ rax = a3
+    48 c, 89 c, c2 c,          \ mov rdx, rax (arg3)
+    48 c, 8b c, 77 c, e8 c,    \ mov rsi, [rdi-24] (a2)
+    48 c, 8b c, 47 c, e0 c,    \ mov rax, [rdi-32] (a1)
+    asm-push-rdi
+    55 c,
+    48 c, 89 c, e5 c,
+    48 c, 83 c, e4 c, f0 c,
+    48 c, 89 c, c7 c,          \ mov rdi, rax (arg1)
+    48 c, 31 c, c0 c,
+    ff c, d3 c,
+    48 c, 89 c, ec c,
+    5d c,
+    asm-pop-rdi
+    sub-rdi-8 sub-rdi-8 sub-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ call4 ( a1 a2 a3 a4 fn-ptr -- res )
+hex
+t-code call4 ( a1 a2 a3 a4 fn-ptr -- res )
+    t-vhere constant XT_CALL4
+    mov-rax-tos                \ rax = fn-ptr
+    48 c, 89 c, c3 c,          \ mov rbx, rax
+    48 c, 8b c, 4f c, f0 c,    \ mov rcx, [rdi-16] (arg4=a4)
+    48 c, 8b c, 57 c, e8 c,    \ mov rdx, [rdi-24] (arg3=a3)
+    48 c, 8b c, 77 c, e0 c,    \ mov rsi, [rdi-32] (arg2=a2)
+    48 c, 8b c, 47 c, d8 c,    \ mov rax, [rdi-40] (a1)
+    asm-push-rdi
+    55 c,
+    48 c, 89 c, e5 c,
+    48 c, 83 c, e4 c, f0 c,
+    48 c, 89 c, c7 c,          \ mov rdi, rax (arg1)
+    48 c, 31 c, c0 c,
+    ff c, d3 c,
+    48 c, 89 c, ec c,
+    5d c,
+    asm-pop-rdi
+    sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ call5 ( a1 a2 a3 a4 a5 fn-ptr -- res )
+hex
+t-code call5 ( a1 a2 a3 a4 a5 fn-ptr -- res )
+    t-vhere constant XT_CALL5
+    mov-rax-tos                \ rax = fn-ptr
+    48 c, 89 c, c3 c,          \ mov rbx, rax
+    4c c, 8b c, 47 c, f0 c,    \ mov r8, [rdi-16] (arg5=a5)
+    48 c, 8b c, 4f c, e8 c,    \ mov rcx, [rdi-24] (arg4=a4)
+    48 c, 8b c, 57 c, e0 c,    \ mov rdx, [rdi-32] (arg3=a3)
+    48 c, 8b c, 77 c, d8 c,    \ mov rsi, [rdi-40] (arg2=a2)
+    48 c, 8b c, 47 c, d0 c,    \ mov rax, [rdi-48] (a1)
+    asm-push-rdi
+    55 c,
+    48 c, 89 c, e5 c,
+    48 c, 83 c, e4 c, f0 c,
+    48 c, 89 c, c7 c,          \ mov rdi, rax (arg1)
+    48 c, 31 c, c0 c,
+    ff c, d3 c,
+    48 c, 89 c, ec c,
+    5d c,
+    asm-pop-rdi
+    sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8
+    mov-tos-rax
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ call6 ( a1 a2 a3 a4 a5 a6 fn-ptr -- res )
+hex
+t-code call6 ( a1 a2 a3 a4 a5 a6 fn-ptr -- res )
+    t-vhere constant XT_CALL6
+    mov-rax-tos                \ rax = fn-ptr
+    48 c, 89 c, c3 c,          \ mov rbx, rax
+    4c c, 8b c, 4f c, f0 c,    \ mov r9, [rdi-16] (arg6=a6)
+    4c c, 8b c, 47 c, e8 c,    \ mov r8, [rdi-24] (arg5=a5)
+    48 c, 8b c, 4f c, e0 c,    \ mov rcx, [rdi-32] (arg4=a4)
+    48 c, 8b c, 57 c, d8 c,    \ mov rdx, [rdi-40] (arg3=a3)
+    48 c, 8b c, 77 c, d0 c,    \ mov rsi, [rdi-48] (arg2=a2)
+    48 c, 8b c, 47 c, c8 c,    \ mov rax, [rdi-56] (a1)
+    asm-push-rdi
+    55 c,
+    48 c, 89 c, e5 c,
+    48 c, 83 c, e4 c, f0 c,
+    48 c, 89 c, c7 c,          \ mov rdi, rax (arg1)
+    48 c, 31 c, c0 c,
+    ff c, d3 c,
+    48 c, 89 c, ec c,
+    5d c,
+    asm-pop-rdi
+    sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8
+    mov-tos-rax
     mov-rax-rdi
     c3 c,
     decimal
@@ -3285,6 +3554,32 @@ t-code constant ( n "name" -- )
     decimal
 t-end-code
 
+\ --- bss-allot ( size -- addr ) : allocates `size` bytes in uninitialized BSS memory ---
+hex
+t-code bss-allot ( size -- addr )
+    t-vhere constant XT_BSS_ALLOT
+    mov-rax-tos                 \ rax = size
+    T-BSS-VAR emit-mov-rdx-var  \ rdx = old bss addr
+    48 c, 89 c, d3 c,           \ mov rbx, rdx
+    48 c, 01 c, c3 c,           \ add rbx, rax (rbx = old + size)
+    T-BSS-VAR emit-store-rbx-var \ store new bss addr
+    48 c, 89 c, 57 c, f8 c,     \ mov [rdi-8], rdx (TOS = old bss addr)
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ --- buffer: ( size "name" -- ) : allocates `size` bytes in BSS and creates a named constant ---
+hex
+t-code buffer: ( size "name" -- )
+    t-vhere constant XT_BUFFER_COLON
+    XT_BSS_ALLOT asm-call-sync  \ ( size -- addr )
+    XT_CONSTANT asm-call-sync   \ ( addr "name" -- )
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
 \ --- , ( n -- ) : conventional alias for the qword-comma C,2.
 \ Emits 8 bytes from the stack into the runtime dictionary, advancing HERE.
 \ Keeps C,2 for backward compatibility; "," reads naturally in defining words.
@@ -3855,6 +4150,69 @@ t-code save-elf-at ( name-addr name-len filename-addr filename-len -- )
     \ --- Done: restore DSP, pop 4 args, return ---
     asm-pop-rdi
     sub-rdi-8 sub-rdi-8 sub-rdi-8 sub-rdi-8
+    mov-rax-rdi
+    c3 c,
+    decimal
+t-end-code
+
+\ ============================================================
+\ save-app ( "entry-name" "filename" -- )
+\ Convenience parsing word: parses the entry word and output filename
+\ directly from the input stream and calls save-elf-at.
+\ Example: save-app main hello.bin
+\ ============================================================
+variable sa-nm-done
+hex
+t-code save-app ( "entry-name" "filename" -- )
+    t-vhere constant XT_SAVE_APP
+    asm-push-rdi                 \ save DSP
+    \ 1. Parse first token (entry name)
+    XT_PARSE_NAME asm-call-sync  \ stack: [rdi-8]=len [rdi-16]=addr
+    mov-rax-tos                  \ rax = entry-len
+    SAVE-NM-LEN emit-store-rax-var
+    mov-rax-nos                  \ rax = entry-addr
+    SAVE-NM-ADDR emit-store-rax-var
+    sub-rdi-8 sub-rdi-8          \ pop entry args
+    \ Copy entry name into SAVE-NM-BUF: rcx=len, rsi=src, rbx=dst
+    SAVE-NM-LEN emit-mov-rcx-var
+    SAVE-NM-ADDR emit-mov-rax-var
+    48 c, 89 c, c6 c,            \ mov rsi, rax
+    SAVE-NM-BUF emit-mov-rbx-imm \ rbx = SAVE-NM-BUF
+    here constant SA_NM_LOOP
+    48 c, 83 c, f9 c, 00 c,      \ cmp rcx, 0
+    asm-je sa-nm-done !
+    8a c, 06 c,                  \ mov al, [rsi]
+    88 c, 03 c,                  \ mov [rbx], al
+    48 c, ff c, c6 c,            \ inc rsi
+    48 c, ff c, c3 c,            \ inc rbx
+    48 c, ff c, c9 c,            \ dec rcx
+    eb c, SA_NM_LOOP here 1 + - c, \ jmp SA_NM_LOOP
+    here constant SA_NM_DONE
+    sa-nm-done @ asm-resolve
+    48 c, c6 c, 03 c, 00 c,      \ mov byte [rbx], 0 (NUL terminator)
+    \ 2. Parse second token (output filename)
+    XT_PARSE_NAME asm-call-sync  \ stack: [rdi-8]=fn-len [rdi-16]=fn-addr
+    \ Stack now has ( fn-addr fn-len ). We need ( entry-addr entry-len fn-addr fn-len )
+    mov-rax-tos                  \ rax = fn-len
+    48 c, 89 c, c2 c,            \ mov rdx, rax (rdx = fn-len)
+    mov-rax-nos                  \ rax = fn-addr
+    48 c, 89 c, c1 c,            \ mov rcx, rax (rcx = fn-addr)
+    sub-rdi-8 sub-rdi-8          \ pop fn args (DSP clean)
+    \ Push entry-addr (SAVE-NM-BUF)
+    SAVE-NM-BUF emit-mov-rax-imm
+    add-rdi-8 mov-tos-rax
+    \ Push entry-len
+    SAVE-NM-LEN emit-mov-rax-var
+    add-rdi-8 mov-tos-rax
+    \ Push fn-addr (RCX)
+    48 c, 89 c, c8 c,            \ mov rax, rcx
+    add-rdi-8 mov-tos-rax
+    \ Push fn-len (RDX)
+    48 c, 89 c, d0 c,            \ mov rax, rdx
+    add-rdi-8 mov-tos-rax
+    \ 3. Call save-elf-at: ( entry-addr entry-len fn-addr fn-len -- )
+    XT_SAVE_ELF_AT asm-call-sync
+    asm-pop-rdi                  \ restore DSP
     mov-rax-rdi
     c3 c,
     decimal

@@ -227,18 +227,18 @@ VagaForth is a **true native compiler** for x86-64 Linux. It does **not** rely o
    - Inline C functions compiled via `c-compile` are translated on the fly to native x86-64 instructions.
    - All I/O operations (`EMIT`, `KEY`, `type`, `included`) perform Linux kernel system calls directly via the `syscall` instruction (`0f 05`).
 
-2. **Standalone Binary Serialization (`save-elf-at`):**
-   - When `save-elf-at` is called, VagaForth constructs an ELF64 header and program header pointing directly to a native startup trampoline.
+2. **Standalone Binary Serialization (`save-app` & `save-elf-at`):**
+   - `save-app` (and low-level `save-elf-at`) constructs an ELF64 header and program header pointing directly to a native startup trampoline.
    - The startup trampoline initializes the hardware return stack (`RSP`), sets up the Forth data stack pointer (`RDI`), and calls the application entry point via an absolute machine call (`call rbx`).
    - When the entry word finishes and returns, the trampoline invokes Linux `sys_exit` (`syscall 60`), cleanly terminating the process without requiring any external runtime.
 
 ---
 
-### 1. `save-elf-at` (Custom Application Entry Point)
+### 1. `save-app` (Direct Parsing Word)
 
-`save-elf-at` creates a standalone Linux x86-64 ELF executable whose entry point immediately executes a specified Forth word when launched:
+`save-app` is the simplest way to save a standalone binary: it parses the entry word name and the output filename directly from the input stream.
 
-**Stack effect:** `( entry-addr entry-len filename-addr filename-len -- )`
+**Usage:** `save-app <entry-name> <output-filename>`
 
 ```forth
 \ Define the application logic:
@@ -250,13 +250,21 @@ VagaForth is a **true native compiler** for x86-64 Linux. It does **not** rely o
     ." 7 * 8 = " 7 8 * . cr
     ;
 
-\ Save as a standalone executable 'hello.bin':
+\ Save directly as a standalone executable 'hello.bin':
+save-app main hello.bin
+```
+
+#### Low-Level Word: `save-elf-at`
+
+If you need programmatic stack-based saving, `save-elf-at` is also available:
+
+**Stack effect:** `( entry-addr entry-len filename-addr filename-len -- )`
+
+```forth
 create entry-nm 16 allot
 s" main" entry-nm swap cmove
 entry-nm 4 s" hello.bin" save-elf-at
 ```
-
-> **Note on `s"` buffers:** Because Forth's `s"` word uses a single shared temporary buffer (`S-BUF-ADDR`), copy the entry word name into a dedicated buffer (e.g. `s" main" entry-nm swap cmove`) before passing the output filename `s" ..."` to `save-elf-at`.
 
 #### Building & Running from Bash:
 
@@ -287,14 +295,45 @@ s" int fib(int n) { if (n <= 1) return n; return fib(n-1) + fib(n-2); } void c_g
     ." Forth computation: 100 * 25 = " 100 25 * . cr
     ;
 
-create entry-nm 16 allot
-s" main" entry-nm swap cmove
-entry-nm 4 s" c_app.bin" save-elf-at
+save-app main c_app.bin
 ```
 
 ---
 
-### 3. Verifying the Native Binary
+### 3. Dynamic Linking & FFI (`addons/dynlink.fs`)
+
+VagaForth features a **100% pure Forth ELF64 dynamic library loader** (`addons/dynlink.fs`). It opens `.so` shared objects via Linux system calls (`sys-open`, `sys-mmap`, `sys-lseek`), parses their ELF dynamic symbol tables (`.dynsym` & `.dynstr`), and calls external functions using System V AMD64 ABI registers (`call0` .. `call6`):
+
+```forth
+include addons/dynlink.fs
+
+create so-path 64 allot
+s" examples/ffi/libdemo.so" so-path swap cmove
+
+create sym-add 16 allot
+s" demo_add" sym-add swap cmove
+
+create sym-fact 16 allot
+s" demo_fact" sym-fact swap cmove
+
+\ Open shared object and resolve exported C symbols
+so-path 23 dlopen constant mylib
+mylib sym-add 8 dlsym constant fn-add
+mylib sym-fact 9 dlsym constant fn-fact
+
+\ Call functions directly from Forth:
+." 100 + 250 = " 100 250 fn-add call2 . cr    \ -> 350
+." 10!        = " 10 fn-fact call1 . cr       \ -> 3628800
+```
+
+Run the interactive FFI demonstration:
+```bash
+make demo-ffi
+```
+
+---
+
+### 4. Verifying the Native Binary
 
 Because generated binaries are 100% static native x86-64 machine code emitted without bloated ELF section tables (only Program Headers `PT_LOAD`), you can inspect them with standard Linux binary analysis tools:
 
@@ -322,22 +361,34 @@ Because generated binaries are 100% static native x86-64 machine code emitted wi
 
 ---
 
-### 4. `save-elf` (Interactive REPL Snapshot)
+### 5. Custom Extended Forth Snapshots (`save-app` with `START`)
 
-`save-elf` saves the entire Forth dictionary and memory state, setting the entry point to the standard interactive Forth REPL (`START`).
-
-**Stack effect:** `( filename-addr filename-len -- )`
+You can create custom standalone Forth REPL binaries with pre-loaded addons (such as Inline C) and custom startup banners using `save-app`:
 
 ```forth
-\ Define new words in the dictionary:
-: double 2 * ;
-: square dup * ;
+\ Load the Inline-C compiler addon into the live dictionary:
+include addons/inline_c.fs
 
-\ Save the extended system snapshot:
-s" my_custom_forth.bin" save-elf
+\ Define a custom startup banner that chains into the Forth REPL (START):
+: c-edition-start
+    cr
+    ." +---------------------------------------------------------+" cr
+    ." |   VagaForth C-Edition (with Native Inline-C JIT)        |" cr
+    ." |   Usage: c-compile with C function strings              |" cr
+    ." +---------------------------------------------------------+" cr
+    START
+    ;
+
+\ Save the snapshot as a standalone executable:
+save-app c-edition-start vagaforth_c.bin
 ```
 
-When `./my_custom_forth.bin` is executed, it boots directly into the interactive Forth REPL with all custom words pre-loaded.
+Build and run the pre-configured C-edition binary directly:
+```bash
+make vagaforth_c.bin
+./vagaforth_c.bin
+```
+When `./vagaforth_c.bin` starts, it displays your custom banner and immediately provides `c-compile` in the REPL without needing any external includes or dependencies!
 
 ---
 
