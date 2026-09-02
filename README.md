@@ -296,7 +296,7 @@ entry-nm 4 s" c_app.bin" save-elf-at
 
 ### 3. Verifying the Native Binary
 
-Because generated binaries are 100% static native x86-64 machine code, you can inspect them with standard Linux binary analysis tools:
+Because generated binaries are 100% static native x86-64 machine code emitted without bloated ELF section tables (only Program Headers `PT_LOAD`), you can inspect them with standard Linux binary analysis tools:
 
 - **Check static linkage (no libc / ld.so dependencies):**
   ```bash
@@ -304,9 +304,15 @@ Because generated binaries are 100% static native x86-64 machine code, you can i
   # Output: not a dynamic executable
   ```
 
-- **Inspect disassembled machine code:**
+- **Inspect disassembled machine code (raw binary mode with 0x400000 base):**
   ```bash
-  objdump -d hello.bin | head -n 30
+  objdump -D -b binary -m i386:x86-64 --adjust-vma=0x400000 hello.bin | head -n 40
+  ```
+
+- **Disassemble starting directly from the entry trampoline:**
+  ```bash
+  ENTRY=$(readelf -h hello.bin | awk '/Entry point/{print $4}')
+  objdump -D -b binary -m i386:x86-64 --adjust-vma=0x400000 --start-address=$ENTRY hello.bin
   ```
 
 - **Trace direct kernel system calls:**
